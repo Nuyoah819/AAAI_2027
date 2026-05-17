@@ -1,0 +1,41 @@
+# Python cache and bytecode
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+.conda-env/
+.venv/
+venv/
+env/
+
+# Conda / packaging artifacts
+.conda/
+conda-meta/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Paper PDFs and extracted text artifacts
+*.pdf
+*.extracted.txt
+*.extracted.clean.txt
+*.doc
+*.docx
+
+# Large graph data and generated caches
+ELSS/data/
+GREET/code/GREET-main/data/
+GREET/code/data/
+aaai/.conda-env/
+
+# Keep source tree clean from build or runtime leftovers
+*.tmp
+*.cache
