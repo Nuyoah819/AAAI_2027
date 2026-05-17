@@ -1,0 +1,13 @@
+name: aaai-e2e-subspace
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - "numpy<2"
+  - scipy
+  - scikit-learn
+  - pytorch
+  - cpuonly
+  - pip
