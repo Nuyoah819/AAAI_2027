@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from sklearn.cluster import KMeans
 
 from losses import pivot_anchored_ranking_loss, subspace_smoothness_loss
 from utils import edge_index_to_dense_adj, normalize_adjacency, normalized_laplacian_from_adj
@@ -268,3 +270,39 @@ class EndToEndUnifiedClustering(nn.Module):
             weights_homo=weights_homo,
             weights_hetero=weights_hetero,
         )
+
+
+def square_feat_map(z: torch.Tensor, c: float = 2 ** -0.5) -> torch.Tensor:
+    n, d = z.shape
+    bias = torch.ones(n, 1, device=z.device, dtype=z.dtype)
+    quadratic = []
+    for i in range(d):
+        quadratic.append(z[:, i : i + 1] ** 2)
+        for j in range(i + 1, d):
+            quadratic.append(z[:, i : i + 1] * z[:, j : j + 1])
+    mapped = torch.cat([bias, z, torch.cat(quadratic, dim=1)], dim=1)
+
+    coeffs = torch.ones(mapped.size(1), device=z.device, dtype=z.dtype)
+    coeffs[0] = c
+    coeffs[1 : d + 1] = np.sqrt(2 * c)
+    coeffs[d + 1 :] = np.sqrt(2.0)
+    return mapped * coeffs.unsqueeze(0)
+
+
+@torch.no_grad()
+def elss_cluster_assignments(
+    basis: torch.Tensor,
+    num_clusters: int,
+    *,
+    random_state: int = 42,
+) -> np.ndarray:
+    """ELSS-style feature-map/SVD postprocessing before KMeans."""
+    basis = torch.where(torch.isfinite(basis), basis, torch.tensor(0.0, device=basis.device))
+    mapped = square_feat_map(basis)
+    try:
+        u_full, _, _ = torch.linalg.svd(mapped, full_matrices=False)
+    except (torch._C._LinAlgError, RuntimeError):
+        q = basis.cpu().numpy()
+        return KMeans(n_clusters=num_clusters, random_state=random_state, n_init=10).fit_predict(q)
+    q = u_full[:, 1 : num_clusters + 1].cpu().numpy()
+    return KMeans(n_clusters=num_clusters, random_state=random_state, n_init=10).fit_predict(q)

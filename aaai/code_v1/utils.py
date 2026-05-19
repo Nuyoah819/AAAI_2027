@@ -3,8 +3,23 @@ from __future__ import annotations
 import math
 import random
 from dataclasses import dataclass
+from pathlib import Path
 
+import numpy as np
+import scipy.io as io
+import scipy.sparse as sp
 import torch
+from sklearn.feature_extraction.text import TfidfTransformer
+from sklearn.preprocessing import normalize
+
+
+@dataclass
+class AttributedGraphData:
+    x: torch.Tensor
+    edge_index: torch.Tensor
+    adj: sp.csr_matrix
+    labels: np.ndarray
+    num_clusters: int
 
 
 @dataclass
@@ -16,9 +31,98 @@ class SyntheticGraph:
 
 def set_seed(seed: int = 42) -> None:
     random.seed(seed)
+    np.random.seed(seed)
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
+
+
+def load_mat_attributed_graph(
+    dataset: str,
+    *,
+    root: str,
+    data_path: str | None = None,
+    data_root: str | None = None,
+    tf_idf: bool = True,
+    feature_norm: str = "l2",
+) -> AttributedGraphData:
+    path = resolve_mat_dataset_path(dataset, root=root, data_path=data_path, data_root=data_root)
+    data = io.loadmat(path)
+
+    x = data["fea"].astype(np.float32)
+    adj = data["W"]
+    if not sp.issparse(adj):
+        adj = sp.csr_matrix(adj)
+    adj = adj.astype(np.float32).tocsr()
+    labels = data["gnd"].reshape(-1).astype(np.int64)
+    if labels.min() == 1:
+        labels = labels - 1
+    num_clusters = int(np.unique(labels).size)
+
+    if tf_idf:
+        x = TfidfTransformer(norm=feature_norm).fit_transform(x).astype(np.float32)
+        if sp.issparse(x):
+            x = x.toarray()
+    else:
+        x = normalize(x, norm=feature_norm).astype(np.float32)
+
+    edge_index = scipy_sparse_to_edge_index(adj)
+    return AttributedGraphData(
+        x=torch.from_numpy(x),
+        edge_index=edge_index.long(),
+        adj=adj,
+        labels=labels,
+        num_clusters=num_clusters,
+    )
+
+
+def resolve_mat_dataset_path(dataset: str, *, root: str, data_path: str | None = None, data_root: str | None = None) -> Path:
+    filename = f"{dataset}.mat"
+    if data_path:
+        path = Path(data_path).expanduser().resolve()
+        if path.is_file():
+            return path
+        raise FileNotFoundError(f"Dataset file does not exist: {path}")
+
+    candidates: list[Path] = []
+    if data_root:
+        candidates.append(Path(data_root).expanduser() / filename)
+
+    repo_root = Path(root).expanduser().resolve()
+    candidates.extend(
+        [
+            repo_root / "data" / filename,
+            repo_root / "ELSS" / "data" / filename,
+            repo_root.parent / "data" / filename,
+            repo_root.parent / "ELSS" / "data" / filename,
+        ]
+    )
+
+    project_root = Path.home() / "Project"
+    if project_root.is_dir():
+        candidates.extend(sorted(project_root.glob(f"*/data/{filename}")))
+
+    seen: set[Path] = set()
+    checked: list[Path] = []
+    for candidate in candidates:
+        path = candidate.expanduser().resolve()
+        if path in seen:
+            continue
+        seen.add(path)
+        checked.append(path)
+        if path.is_file():
+            return path
+
+    checked_text = "\n  - ".join(str(path) for path in checked)
+    raise FileNotFoundError(
+        f"Could not find {filename}. Put it under <repo>/data/ or pass "
+        f"--data-path /path/to/{filename}.\nChecked:\n  - {checked_text}"
+    )
+
+
+def scipy_sparse_to_edge_index(matrix: sp.spmatrix) -> torch.Tensor:
+    matrix = matrix.tocoo()
+    return torch.from_numpy(np.vstack((matrix.row, matrix.col)).astype(np.int64))
 
 
 def edge_index_to_dense_adj(
