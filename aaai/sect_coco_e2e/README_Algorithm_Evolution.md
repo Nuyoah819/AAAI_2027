@@ -5416,3 +5416,48 @@ The final locked version therefore remains `v37c`.
 The paper-level conclusion is stronger after this negative result: even adding
 a fixed full-graph PPR view does not consistently beat the current best
 combination of embedding-side regularization plus full-space final clustering.
+
+## 2026-06-26: v39 Low-Pass Diffusion Depth Scan
+
+### Baseline
+
+Before scanning, the code was restored to the `v37c` frontend shape: no fixed
+PPR view, `postproc_subspace_margin=1.0`, and `lowpass_steps=2`.
+
+80-epoch five-dataset smoke baseline:
+
+| Dataset | v37c smoke ACC |
+| --- | ---: |
+| acm | 70.38 |
+| dblp | 66.48 |
+| flickr | 36.54 |
+| blogcatalog | 84.39 |
+| chameleon | 32.54 |
+
+### v39a: lowpass_steps=4
+
+`v39a` changed only `lowpass_steps: 2 -> 4`.
+
+80-epoch smoke:
+
+| Dataset | v37c smoke | v39a | delta | choice |
+| --- | ---: | ---: | ---: | --- |
+| acm | 70.38 | 70.64 | +0.26 | full |
+| dblp | 66.48 | 65.61 | -0.86 | full |
+| flickr | 36.54 | 38.43 | +1.89 | full |
+| blogcatalog | 84.39 | 74.27 | -10.12 | full |
+| chameleon | 32.54 | 32.67 | +0.13 | full |
+
+ACM+DBLP cumulative delta was `-0.60`, far below the `+3.00` candidate
+threshold. More importantly, `BlogCatalog` dropped by more than `5` points, so
+the scan stopped immediately by rule and `v39b`/`v39c` were not run.
+
+### v39 conclusion
+
+Increasing the confidence-subgraph low-pass depth from 2 to 4 did not validate
+diffusion depth as the front-end bottleneck. The small gains on `ACM` and
+`Flickr` were not enough to offset the `DBLP` regression and the large
+`BlogCatalog` collapse. No 260-epoch full run was launched for `v39`.
+
+The final locked version remains `v37c`, and the next direction should be the
+planned `v40` assignment-mechanism audit rather than deeper low-pass diffusion.
