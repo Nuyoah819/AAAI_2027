@@ -3206,6 +3206,42 @@ EXPERIMENT_VARIANTS["v41e_sharp"] = {
         "aptc_teacher_reliability_mode": "margin",
     },
 }
+EXPERIMENT_VARIANTS["v41f"] = {
+    "output_stem": "unified_aptc_9datasets_v41f",
+    "overrides": {
+        **EXPERIMENT_VARIANTS["v28b"]["overrides"],
+        "aptc_init_teacher_weight": 0.10,
+        "cluster_update_interval": 25,
+        "aptc_teacher_conf_power": 2.0,
+        "aptc_teacher_conf_floor": 0.10,
+        "aptc_teacher_conf_center": 0.50,
+        "aptc_teacher_conf_center_mode": "adaptive_quantile",
+        "aptc_teacher_conf_quantile": 0.65,
+        "aptc_teacher_conf_min_scale": 0.05,
+        "aptc_teacher_reliability_mode": "agreement",
+        "aptc_teacher_agreement_k": 10,
+        "aptc_teacher_agreement_floor": 0.10,
+        "aptc_teacher_agreement_power": 1.0,
+    },
+}
+EXPERIMENT_VARIANTS["v41f_strict"] = {
+    "output_stem": "unified_aptc_9datasets_v41f_strict",
+    "overrides": {
+        **EXPERIMENT_VARIANTS["v41f"]["overrides"],
+        "aptc_teacher_agreement_k": 15,
+        "aptc_teacher_agreement_floor": 0.05,
+        "aptc_teacher_agreement_power": 2.0,
+    },
+}
+EXPERIMENT_VARIANTS["v41f_soft"] = {
+    "output_stem": "unified_aptc_9datasets_v41f_soft",
+    "overrides": {
+        **EXPERIMENT_VARIANTS["v41f"]["overrides"],
+        "aptc_teacher_agreement_k": 5,
+        "aptc_teacher_agreement_floor": 0.20,
+        "aptc_teacher_agreement_power": 0.75,
+    },
+}
 
 REMOVED_BACKEND_KEYS = {
     "final_label_mode",

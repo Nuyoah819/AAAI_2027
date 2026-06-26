@@ -6187,3 +6187,144 @@ are reliable when their assigned cluster is also supported by local embedding
 neighborhood consensus. This should be implemented, if pursued, as a reliability
 source swap inside the same teacher-weighting block, not as a new clustering
 head or dataset-specific selector.
+
+## 2026-06-26: v41f Agreement-Aware KMeans Teacher Reliability
+
+### Motivation
+
+`v41e` showed that top1-top2 margin is a slightly better reliability source
+than top1 probability for DBLP, especially in the sharp variant, but it still
+failed the full gate and hurt Wiki. The remaining hypothesis was that posterior
+shape alone cannot tell whether a KMeans teacher node is semantically reliable.
+
+`v41f` therefore tests one minimal agreement-aware source:
+
+```text
+teacher_margin = top1(teacher) - top2(teacher)
+agreement = fraction of embedding-kNN neighbors with same teacher argmax
+teacher_reliability = teacher_margin * agreement_weight
+```
+
+This keeps the same teacher KL loss and v41d adaptive quantile weighting. It
+does not add a new clustering head, backend selector, final-label mode, or
+dataset-specific branch.
+
+### Implementation
+
+Changes in `core/e2e/sect_coco_e2e.py`:
+
+- added `aptc_teacher_agreement_k`, `aptc_teacher_agreement_floor`, and
+  `aptc_teacher_agreement_power`;
+- added reliability mode id `2.0` for `aptc_teacher_reliability_mode =
+  "agreement"`;
+- added `teacher_embedding_agreement(...)`, which computes deterministic
+  embedding-neighborhood agreement under `torch.no_grad()`;
+- for graphs with `N <= 12000`, agreement uses full cosine top-k;
+- for larger graphs, agreement uses a fixed `torch.linspace` sample of up to
+  `4096` reference nodes to avoid an `N x N` memory spike;
+- added diagnostics `teacher_agreement_mean`, `teacher_agreement_std`, and
+  `teacher_agreement_active_ratio`.
+
+### Variants
+
+- `v41f`: `k=10`, agreement floor `0.10`, agreement power `1.0`.
+- `v41f_strict`: `k=15`, agreement floor `0.05`, agreement power `2.0`.
+- `v41f_soft`: `k=5`, agreement floor `0.20`, agreement power `0.75`.
+
+The variants were run sequentially. Base `v41f` failed the DBLP/Wiki gates, so
+`v41f_strict` was run. Strict still failed Wiki and damaged Squirrel, so the
+last allowed fallback, `v41f_soft`, was run. No further sweep was performed.
+
+### 80-epoch smoke results
+
+ACC/NMI/ARI are percentages.
+
+| Dataset | v41f ACC/NMI/ARI | v41f_strict ACC/NMI/ARI | v41f_soft ACC/NMI/ARI |
+| --- | ---: | ---: | ---: |
+| acm | 82.61 / 51.63 / 56.10 | 82.41 / 51.32 / 55.69 | 82.45 / 51.41 / 55.76 |
+| dblp | 63.72 / 32.60 / 28.40 | 63.30 / 32.26 / 28.29 | 62.85 / 31.49 / 27.39 |
+| pubmed | 61.63 / 22.47 / 21.67 | 62.19 / 23.26 / 22.62 | 62.06 / 23.04 / 22.38 |
+| wiki | 39.54 / 33.59 / 17.14 | 39.17 / 34.99 / 18.05 | 36.96 / 33.50 / 15.56 |
+| flickr | 48.01 / 36.42 / 24.34 | 45.93 / 32.69 / 22.04 | 47.74 / 34.46 / 22.57 |
+| blogcatalog | 81.22 / 60.56 / 59.98 | 81.68 / 61.17 / 61.18 | 82.79 / 62.96 / 63.32 |
+| squirrel | 30.22 / 6.39 / 5.23 | 21.57 / 1.35 / 0.03 | 30.26 / 6.42 / 5.26 |
+| texas | 73.77 / 49.44 / 61.09 | 73.77 / 49.44 / 61.09 | 73.77 / 49.44 / 61.09 |
+| chameleon | 32.15 / 13.99 / 5.27 | 32.85 / 14.85 / 5.75 | 32.81 / 14.40 / 5.39 |
+
+Smoke accumulated ACC:
+
+- `v41f`: `512.88`
+- `v41f_strict`: `502.87`
+- `v41f_soft`: `511.70`
+
+### Smoke comparison
+
+| Dataset | v37c_smoke | v41e_sharp | v41f | v41f_strict | v41f_soft | delta_v41f_vs_v37c | teacher_margin_mean | teacher_agreement_mean | teacher_weight_active_ratio | proto_sep |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| acm | 70.38 | 82.91 | 82.61 | 82.41 | 82.45 | +12.23 | 0.0400 | 0.9595 | 0.3488 | 0.6347 |
+| dblp | 66.48 | 63.59 | 63.72 | 63.30 | 62.85 | -2.76 | 0.1565 | 1.0000 | 0.3488 | 0.3074 |
+| pubmed | 63.21 | 62.10 | 61.63 | 62.19 | 62.06 | -1.58 | 0.1306 | 0.9940 | 0.3491 | 0.1733 |
+| wiki | 44.78 | 40.12 | 39.54 | 39.17 | 36.96 | -5.24 | 0.0070 | 0.5931 | 0.3472 | 0.3583 |
+| flickr | 36.81 | 50.32 | 48.01 | 45.93 | 47.74 | +11.20 | 0.0076 | 0.7436 | 0.3481 | 0.5940 |
+| blogcatalog | 84.60 | 82.26 | 81.22 | 81.68 | 82.79 | -3.38 | 0.0136 | 0.5469 | 0.3483 | 0.2717 |
+| squirrel | 30.32 | 30.28 | 30.22 | 21.57 | 30.26 | -0.10 | 0.0308 | 0.2179 | 0.3228 | 0.2073 |
+| texas | 73.77 | 73.77 | 73.77 | 73.77 | 73.77 | +0.00 | 0.1216 | 0.8639 | 0.3497 | 0.1089 |
+| chameleon | 32.89 | 33.16 | 32.15 | 32.85 | 32.81 | -0.74 | 0.0680 | 0.6917 | 0.3465 | 0.0556 |
+
+### Diagnostics interpretation
+
+The agreement mechanism is active and numerically healthy:
+
+- `teacher_reliability_mode_id` is `2.0` for v41f variants;
+- `teacher_agreement_mean` is non-zero on every dataset;
+- `teacher_weight_active_ratio` remains around `0.32` to `0.35` for base
+  `v41f`, so the teacher loss did not collapse back to the floor-only regime.
+
+However, agreement did not solve the DBLP/Wiki conflict. DBLP's agreement is
+exactly `1.0000` with zero standard deviation, so embedding-neighborhood
+agreement provides no extra discrimination there: `v41f` effectively reduces to
+margin reliability on DBLP. This explains why DBLP only improves slightly over
+`v41e_sharp` (`63.72` vs `63.59`) and remains below the `64.5` smoke gate.
+
+Wiki has much lower agreement (`0.5931`) and very small teacher margin
+(`0.0070`). Multiplying margin by agreement lowers the effective teacher
+confidence but does not identify a cleaner useful teacher subset. Wiki drops to
+`39.54` in base v41f, and the soft fallback drops further to `36.96`.
+
+Strict agreement is not viable: it lowers DBLP, hurts Flickr, and collapses
+Squirrel to `21.57`. Soft agreement recovers BlogCatalog and Squirrel but
+damages Wiki and DBLP. The failure mode is therefore not just curve strength;
+the local agreement signal is either saturated on DBLP or still noisy on Wiki.
+
+### Decision: no full
+
+No 260-epoch full run was launched.
+
+None of the v41f variants met the smoke success criteria:
+
+- DBLP never reached `64.5`;
+- Wiki never reached `41.8`;
+- base v41f failed BlogCatalog's v37c-relative safety target;
+- strict v41f severely damaged Squirrel;
+- soft v41f severely damaged Wiki.
+
+The best v41f DBLP was base `v41f` at `63.72`, but it is still below the full
+gate and below v37c smoke. Therefore v41f is not a full-run candidate.
+
+### Next recommended direction
+
+The KMeans teacher line should not keep tuning scalar reliability gates. The
+sequence now shows:
+
+- top1 probability reliability is not semantic enough;
+- margin reliability is better for DBLP but hurts Wiki;
+- embedding-neighborhood agreement saturates on DBLP and remains noisy on Wiki.
+
+The next single hypothesis should test whether the teacher target itself, not
+only its reliability weight, is the bottleneck. A minimal v41g direction would
+be a consensus teacher built from current KMeans teacher and a detached
+embedding-neighborhood label distribution, still inside the same teacher KL
+framework and without any dataset-specific routing. Do not add a new head or
+backend selector; first test whether replacing the teacher target with a
+local-consensus-smoothed target is more reliable than reweighting the existing
+target.

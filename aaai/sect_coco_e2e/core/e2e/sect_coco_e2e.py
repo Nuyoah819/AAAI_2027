@@ -201,6 +201,9 @@ class E2ESECTCoCoConfig:
     aptc_teacher_conf_quantile: float = 0.65
     aptc_teacher_conf_min_scale: float = 0.05
     aptc_teacher_reliability_mode: str = "prob"
+    aptc_teacher_agreement_k: int = 10
+    aptc_teacher_agreement_floor: float = 0.10
+    aptc_teacher_agreement_power: float = 1.0
     aptc_proto_readout_weight: float = 0.0
     aptc_proto_readout_temperature: float = 0.20
     aptc_proto_readout_conf_power: float = 1.0
@@ -915,6 +918,34 @@ def student_t_distribution(z: torch.Tensor, centers: torch.Tensor, alpha: float 
     return q / q.sum(dim=1, keepdim=True).clamp_min(1e-8)
 
 
+def teacher_embedding_agreement(
+    embedding: torch.Tensor,
+    teacher: torch.Tensor,
+    k: int,
+) -> torch.Tensor:
+    with torch.no_grad():
+        z = F.normalize(embedding.detach(), p=2, dim=1)
+        teacher_label = teacher.detach().argmax(dim=1)
+        n = int(z.shape[0])
+        if n <= 1:
+            return z.new_ones(n)
+        k_eff = min(max(1, int(k)), n - 1)
+        if n <= 12_000:
+            sim = z @ z.T
+            sim.fill_diagonal_(-1.0)
+            idx = sim.topk(k_eff, dim=1).indices
+            neighbor_labels = teacher_label[idx]
+        else:
+            sample_size = min(4096, n)
+            sample_idx = torch.linspace(0, n - 1, steps=sample_size, device=z.device).long()
+            z_sample = z[sample_idx]
+            label_sample = teacher_label[sample_idx]
+            sim = z @ z_sample.T
+            idx = sim.topk(min(k_eff, sample_size), dim=1).indices
+            neighbor_labels = label_sample[idx]
+        return (neighbor_labels == teacher_label[:, None]).to(z.dtype).mean(dim=1)
+
+
 class EndToEndSECTCoCoModule(nn.Module):
     def __init__(
         self,
@@ -1244,6 +1275,7 @@ class EndToEndSECTCoCoModule(nn.Module):
         transport_loss = F.kl_div(q_reg.clamp_min(1e-8).log(), out["q_transport"].detach(), reduction="batchmean")
         teacher_conf = q_reg.new_zeros(q_reg.shape[0])
         teacher_margin = q_reg.new_zeros(q_reg.shape[0])
+        teacher_agreement = q_reg.new_zeros(q_reg.shape[0])
         conf_weight = q_reg.new_zeros(q_reg.shape[0])
         conf_floor = float(cfg.aptc_teacher_conf_floor)
         teacher_conf_center = q_reg.new_tensor(float(cfg.aptc_teacher_conf_center))
@@ -1263,8 +1295,26 @@ class EndToEndSECTCoCoModule(nn.Module):
             if reliability_mode == "margin":
                 teacher_conf = teacher_margin.detach()
                 teacher_reliability_mode_id = 1.0
+            elif reliability_mode == "agreement":
+                teacher_agreement = teacher_embedding_agreement(
+                    out["embedding"],
+                    teacher,
+                    k=int(getattr(cfg, "aptc_teacher_agreement_k", 10)),
+                ).detach()
+                agreement_floor = float(getattr(cfg, "aptc_teacher_agreement_floor", 0.10))
+                agreement_power = max(1e-4, float(getattr(cfg, "aptc_teacher_agreement_power", 1.0)))
+                agreement_weight = agreement_floor + (1.0 - agreement_floor) * teacher_agreement.clamp(0.0, 1.0).pow(
+                    agreement_power
+                )
+                teacher_conf = (teacher_margin * agreement_weight).detach()
+                teacher_reliability_mode_id = 2.0
             else:
                 teacher_conf = teacher_prob.detach()
+                teacher_agreement = teacher_embedding_agreement(
+                    out["embedding"],
+                    teacher,
+                    k=int(getattr(cfg, "aptc_teacher_agreement_k", 10)),
+                ).detach()
             conf_center = float(cfg.aptc_teacher_conf_center)
             conf_power = max(1e-4, float(cfg.aptc_teacher_conf_power))
             conf_mode = str(getattr(cfg, "aptc_teacher_conf_center_mode", "fixed")).lower()
@@ -1516,6 +1566,9 @@ class EndToEndSECTCoCoModule(nn.Module):
             "teacher_reliability_mode_id": teacher_reliability_mode_id,
             "teacher_margin_mean": float(teacher_margin.mean().detach().cpu()),
             "teacher_margin_std": float(teacher_margin.std(unbiased=False).detach().cpu()),
+            "teacher_agreement_mean": float(teacher_agreement.mean().detach().cpu()),
+            "teacher_agreement_std": float(teacher_agreement.std(unbiased=False).detach().cpu()),
+            "teacher_agreement_active_ratio": float((teacher_agreement > 0.5).float().mean().detach().cpu()),
             "teacher_conf_mean": float(teacher_conf.mean().detach().cpu()),
             "teacher_conf_std": float(teacher_conf.std(unbiased=False).detach().cpu()),
             "teacher_conf_center": float(teacher_conf_center.detach().cpu()),
