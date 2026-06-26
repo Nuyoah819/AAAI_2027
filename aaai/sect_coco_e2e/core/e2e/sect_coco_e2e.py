@@ -204,6 +204,15 @@ class E2ESECTCoCoConfig:
     aptc_teacher_agreement_k: int = 10
     aptc_teacher_agreement_floor: float = 0.10
     aptc_teacher_agreement_power: float = 1.0
+    aptc_local_teacher: bool = False
+    aptc_local_teacher_beta: float = 0.35
+    aptc_local_teacher_pos_weight: float = 0.50
+    aptc_local_teacher_hard_weight: float = 0.125
+    aptc_local_teacher_neg_weight: float = 0.25
+    aptc_local_teacher_temperature: float = 1.0
+    aptc_local_teacher_use_prior_uniform: bool = False
+    aptc_local_teacher_node_weight: str = "uniform"
+    aptc_local_teacher_detach_masks: bool = True
     aptc_proto_readout_weight: float = 0.0
     aptc_proto_readout_temperature: float = 0.20
     aptc_proto_readout_conf_power: float = 1.0
@@ -946,6 +955,75 @@ def teacher_embedding_agreement(
         return (neighbor_labels == teacher_label[:, None]).to(z.dtype).mean(dim=1)
 
 
+def _posterior_entropy(q: torch.Tensor) -> torch.Tensor:
+    denom = math.log(float(max(2, q.shape[1])))
+    return -(q * q.clamp_min(1e-8).log()).sum(dim=1) / max(denom, 1e-8)
+
+
+def _edge_soft_agreement(q: torch.Tensor, edge_index: torch.Tensor, weight: torch.Tensor) -> torch.Tensor:
+    if weight.numel() == 0:
+        return q.new_tensor(0.0)
+    src, dst = edge_index
+    agree = (q[src] * q[dst]).sum(dim=1)
+    return (weight.to(q.dtype) * agree).sum() / weight.to(q.dtype).sum().clamp_min(1e-8)
+
+
+def local_consensus_teacher_target(
+    teacher: torch.Tensor,
+    edge_index: torch.Tensor,
+    degree: torch.Tensor,
+    homo: torch.Tensor,
+    hetero: torch.Tensor,
+    hard: torch.Tensor,
+    *,
+    beta: float = 0.35,
+    pos_weight: float = 0.50,
+    hard_weight: float = 0.125,
+    neg_weight: float = 0.25,
+    temperature: float = 1.0,
+    use_prior_uniform: bool = False,
+    detach_masks: bool = True,
+) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+    t0 = teacher.detach().clamp_min(1e-8)
+    t0 = t0 / t0.sum(dim=1, keepdim=True).clamp_min(1e-8)
+    mask_homo = homo.detach() if detach_masks else homo
+    mask_hetero = hetero.detach() if detach_masks else hetero
+    mask_hard = hard.detach() if detach_masks else hard
+    pos_mask = (mask_homo + float(hard_weight) * mask_hard).clamp_min(1e-8)
+    neg_mask = mask_hetero.clamp_min(1e-8)
+    pos_msg = normalized_spmm(edge_index, pos_mask, t0, degree.numel())
+    neg_msg = normalized_spmm(edge_index, neg_mask, t0, degree.numel())
+    if bool(use_prior_uniform):
+        prior_ref = torch.full_like(t0, 1.0 / float(t0.shape[1]))
+        neg_term = prior_ref - neg_msg
+    else:
+        neg_term = neg_msg
+    logits = (t0.clamp_min(1e-8).log() + float(pos_weight) * pos_msg - float(neg_weight) * neg_term) / max(
+        1e-4,
+        float(temperature),
+    )
+    t_local = F.softmax(logits, dim=1)
+    beta_value = float(np.clip(beta, 0.0, 1.0))
+    t_final = (1.0 - beta_value) * t0 + beta_value * t_local
+    t_final = t_final / t_final.sum(dim=1, keepdim=True).clamp_min(1e-8)
+    beta_tensor = t0.new_full((t0.shape[0],), beta_value)
+    stats = {
+        "local_teacher_beta": beta_tensor,
+        "local_teacher_kl_to_t0": F.kl_div(t_final.clamp_min(1e-8).log(), t0, reduction="batchmean"),
+        "local_teacher_entropy_t0": _posterior_entropy(t0).mean(),
+        "local_teacher_entropy_local": _posterior_entropy(t_local).mean(),
+        "local_teacher_entropy_final": _posterior_entropy(t_final).mean(),
+        "local_teacher_pos_agree_t0": _edge_soft_agreement(t0, edge_index, pos_mask),
+        "local_teacher_pos_agree_final": _edge_soft_agreement(t_final, edge_index, pos_mask),
+        "local_teacher_hard_agree_final": _edge_soft_agreement(t_final, edge_index, mask_hard.clamp_min(1e-8)),
+        "local_teacher_neg_overlap_t0": _edge_soft_agreement(t0, edge_index, neg_mask),
+        "local_teacher_neg_overlap_final": _edge_soft_agreement(t_final, edge_index, neg_mask),
+    }
+    stats["local_teacher_pos_gain"] = stats["local_teacher_pos_agree_final"] - stats["local_teacher_pos_agree_t0"]
+    stats["local_teacher_neg_reduction"] = stats["local_teacher_neg_overlap_t0"] - stats["local_teacher_neg_overlap_final"]
+    return t_final, stats
+
+
 class EndToEndSECTCoCoModule(nn.Module):
     def __init__(
         self,
@@ -1281,8 +1359,47 @@ class EndToEndSECTCoCoModule(nn.Module):
         teacher_conf_center = q_reg.new_tensor(float(cfg.aptc_teacher_conf_center))
         teacher_conf_scale = q_reg.new_tensor(max(1.0 - float(cfg.aptc_teacher_conf_center), 1e-8))
         teacher_reliability_mode_id = 0.0
+        local_teacher_enabled = bool(getattr(cfg, "aptc_local_teacher", False))
+        local_teacher_stats = {
+            "local_teacher_beta": q_reg.new_zeros(q_reg.shape[0]),
+            "local_teacher_kl_to_t0": q_reg.new_tensor(0.0),
+            "local_teacher_entropy_t0": q_reg.new_tensor(0.0),
+            "local_teacher_entropy_local": q_reg.new_tensor(0.0),
+            "local_teacher_entropy_final": q_reg.new_tensor(0.0),
+            "local_teacher_pos_agree_t0": q_reg.new_tensor(0.0),
+            "local_teacher_pos_agree_final": q_reg.new_tensor(0.0),
+            "local_teacher_hard_agree_final": q_reg.new_tensor(0.0),
+            "local_teacher_neg_overlap_t0": q_reg.new_tensor(0.0),
+            "local_teacher_neg_overlap_final": q_reg.new_tensor(0.0),
+            "local_teacher_pos_gain": q_reg.new_tensor(0.0),
+            "local_teacher_neg_reduction": q_reg.new_tensor(0.0),
+        }
+        local_teacher_qreg_kl = q_reg.new_tensor(0.0)
+        local_teacher_qrefined_kl = q_reg.new_tensor(0.0)
+        local_teacher_qmix_kl = q_reg.new_tensor(0.0)
         if self.init_teacher.numel() == q_reg.numel():
-            teacher = self.init_teacher.detach().clamp_min(1e-8)
+            teacher_t0 = self.init_teacher.detach().clamp_min(1e-8)
+            teacher_t0 = teacher_t0 / teacher_t0.sum(dim=1, keepdim=True).clamp_min(1e-8)
+            teacher = teacher_t0
+            if local_teacher_enabled:
+                teacher, local_teacher_stats = local_consensus_teacher_target(
+                    teacher_t0,
+                    self.edge_index,
+                    self.degree,
+                    out["homo"],
+                    out["hetero"],
+                    out["hard"],
+                    beta=float(getattr(cfg, "aptc_local_teacher_beta", 0.35)),
+                    pos_weight=float(getattr(cfg, "aptc_local_teacher_pos_weight", 0.50)),
+                    hard_weight=float(getattr(cfg, "aptc_local_teacher_hard_weight", 0.125)),
+                    neg_weight=float(getattr(cfg, "aptc_local_teacher_neg_weight", 0.25)),
+                    temperature=float(getattr(cfg, "aptc_local_teacher_temperature", 1.0)),
+                    use_prior_uniform=bool(getattr(cfg, "aptc_local_teacher_use_prior_uniform", False)),
+                    detach_masks=bool(getattr(cfg, "aptc_local_teacher_detach_masks", True)),
+                )
+                local_teacher_qreg_kl = F.kl_div(q_reg.clamp_min(1e-8).log(), teacher, reduction="batchmean")
+                local_teacher_qrefined_kl = F.kl_div(out["q_refined"].clamp_min(1e-8).log(), teacher, reduction="batchmean")
+                local_teacher_qmix_kl = F.kl_div(out["q"].clamp_min(1e-8).log(), teacher, reduction="batchmean")
             q_log = q_reg.clamp_min(1e-8).log()
             per_node_kl = F.kl_div(q_log, teacher, reduction="none").sum(dim=1)
             topk = torch.topk(teacher, k=min(2, teacher.shape[1]), dim=1).values.detach()
@@ -1318,7 +1435,12 @@ class EndToEndSECTCoCoModule(nn.Module):
             conf_center = float(cfg.aptc_teacher_conf_center)
             conf_power = max(1e-4, float(cfg.aptc_teacher_conf_power))
             conf_mode = str(getattr(cfg, "aptc_teacher_conf_center_mode", "fixed")).lower()
-            if conf_mode in {"adaptive_quantile", "quantile"} and teacher_conf.numel() > 1:
+            node_weight_mode = str(getattr(cfg, "aptc_local_teacher_node_weight", "uniform")).lower()
+            if local_teacher_enabled and node_weight_mode == "uniform":
+                conf_weight = torch.ones_like(teacher_conf)
+                teacher_conf_center = teacher_conf.new_tensor(float(cfg.aptc_teacher_conf_center))
+                teacher_conf_scale = teacher_conf.new_tensor(max(1.0 - float(cfg.aptc_teacher_conf_center), 1e-8))
+            elif conf_mode in {"adaptive_quantile", "quantile"} and teacher_conf.numel() > 1:
                 conf_q = float(np.clip(float(cfg.aptc_teacher_conf_quantile), 0.0, 0.99))
                 teacher_conf_center = torch.quantile(teacher_conf, conf_q).detach()
                 teacher_conf_scale = (teacher_conf.max().detach() - teacher_conf_center).clamp_min(
@@ -1337,8 +1459,9 @@ class EndToEndSECTCoCoModule(nn.Module):
             else:
                 teacher_conf_center = teacher_conf.new_tensor(conf_center)
                 teacher_conf_scale = teacher_conf.new_tensor(max(1.0 - conf_center, 1e-8))
-            conf_weight = ((teacher_conf - teacher_conf_center).clamp_min(0.0) / teacher_conf_scale).clamp(0.0, 1.0)
-            conf_weight = conf_floor + (1.0 - conf_floor) * conf_weight.pow(conf_power)
+            if not (local_teacher_enabled and node_weight_mode == "uniform"):
+                conf_weight = ((teacher_conf - teacher_conf_center).clamp_min(0.0) / teacher_conf_scale).clamp(0.0, 1.0)
+                conf_weight = conf_floor + (1.0 - conf_floor) * conf_weight.pow(conf_power)
             init_teacher_loss = (conf_weight * per_node_kl).sum() / conf_weight.sum().clamp_min(1e-8)
         else:
             init_teacher_loss = q_reg.new_tensor(0.0)
@@ -1563,6 +1686,23 @@ class EndToEndSECTCoCoModule(nn.Module):
             "cluster": float(cluster_loss.detach().cpu()),
             "transport": float(transport_loss.detach().cpu()),
             "init_teacher": float(init_teacher_loss.detach().cpu()),
+            "local_teacher_enabled": bool(local_teacher_enabled),
+            "local_teacher_beta_mean": float(local_teacher_stats["local_teacher_beta"].mean().detach().cpu()),
+            "local_teacher_beta_std": float(local_teacher_stats["local_teacher_beta"].std(unbiased=False).detach().cpu()),
+            "local_teacher_kl_to_t0": float(local_teacher_stats["local_teacher_kl_to_t0"].detach().cpu()),
+            "local_teacher_entropy_t0": float(local_teacher_stats["local_teacher_entropy_t0"].detach().cpu()),
+            "local_teacher_entropy_local": float(local_teacher_stats["local_teacher_entropy_local"].detach().cpu()),
+            "local_teacher_entropy_final": float(local_teacher_stats["local_teacher_entropy_final"].detach().cpu()),
+            "local_teacher_pos_agree_t0": float(local_teacher_stats["local_teacher_pos_agree_t0"].detach().cpu()),
+            "local_teacher_pos_agree_final": float(local_teacher_stats["local_teacher_pos_agree_final"].detach().cpu()),
+            "local_teacher_hard_agree_final": float(local_teacher_stats["local_teacher_hard_agree_final"].detach().cpu()),
+            "local_teacher_neg_overlap_t0": float(local_teacher_stats["local_teacher_neg_overlap_t0"].detach().cpu()),
+            "local_teacher_neg_overlap_final": float(local_teacher_stats["local_teacher_neg_overlap_final"].detach().cpu()),
+            "local_teacher_pos_gain": float(local_teacher_stats["local_teacher_pos_gain"].detach().cpu()),
+            "local_teacher_neg_reduction": float(local_teacher_stats["local_teacher_neg_reduction"].detach().cpu()),
+            "local_teacher_qreg_kl": float(local_teacher_qreg_kl.detach().cpu()),
+            "local_teacher_qrefined_kl": float(local_teacher_qrefined_kl.detach().cpu()),
+            "local_teacher_qmix_kl": float(local_teacher_qmix_kl.detach().cpu()),
             "teacher_reliability_mode_id": teacher_reliability_mode_id,
             "teacher_margin_mean": float(teacher_margin.mean().detach().cpu()),
             "teacher_margin_std": float(teacher_margin.std(unbiased=False).detach().cpu()),

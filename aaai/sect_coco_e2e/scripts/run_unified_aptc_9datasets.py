@@ -3224,6 +3224,26 @@ EXPERIMENT_VARIANTS["v41f"] = {
         "aptc_teacher_agreement_power": 1.0,
     },
 }
+EXPERIMENT_VARIANTS["v42a_local_consensus_teacher"] = {
+    "output_stem": "unified_aptc_9datasets_v42a",
+    "overrides": {
+        **EXPERIMENT_VARIANTS["v41f"]["overrides"],
+        "aptc_local_teacher": True,
+        "aptc_local_teacher_beta": 0.35,
+        "aptc_local_teacher_pos_weight": 0.50,
+        "aptc_local_teacher_hard_weight": 0.125,
+        "aptc_local_teacher_neg_weight": 0.25,
+        "aptc_local_teacher_temperature": 1.0,
+        "aptc_local_teacher_use_prior_uniform": False,
+        "aptc_local_teacher_node_weight": "uniform",
+        "aptc_local_teacher_detach_masks": True,
+        "aptc_teacher_reliability_mode": "prob",
+        "aptc_teacher_conf_center_mode": "fixed",
+        "aptc_teacher_conf_center": 0.50,
+        "aptc_teacher_conf_power": 1.0,
+        "aptc_teacher_conf_floor": 0.0,
+    },
+}
 EXPERIMENT_VARIANTS["v41f_strict"] = {
     "output_stem": "unified_aptc_9datasets_v41f_strict",
     "overrides": {
