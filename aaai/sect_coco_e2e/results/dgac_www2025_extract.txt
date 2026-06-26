@@ -1,0 +1,2023 @@
+--- PAGE 1 ---
+Diffusion-based Graph-agnostic Clustering
+1 59
+2 60
+3 Anonymous Author(s) 61
+4 Submission Id: 1776 62
+5 63
+6 ABSTRACT 1 INTRODUCTION 64
+7 65
+Clustering over a graph seeks to partition the nodes therein into As a fundamental task in data mining, graph clustering has con-
+8 66
+disjoint groups such that nodes within the same cluster are tightly- sistently garnered significant attention from researchers due to
+9 67
+knit, while those across clusters are distant from each other. In its broad applicability across various domains such as commu-
+10 68
+practice, graphs are often attended with rich attributes, which are nity detection [38, 65], Bioinformatics [6, 11], anomaly identifi-
+11 69
+termed attributed graphs. By leveraging the complementary nature cation [39, 50], recommender systems [18, 37] and so on.
+12 70
+of graph topology and node attributes in such graphs, graph neural In recent years, graph neural networks (GNNs) [35] have emerged
+13 71
+networks (GNNs) have obtained encouraging performance in graph as popular techniques for graph clustering by virtue of their power-
+14 72
+clustering. However, existing GNN-based approaches strongly rely ful capabilities in fusing complex structural connectivity and nodal
+15 73
+on the homophilic assumption of the input graph, and thus, largely attributes [43] that are widely present in real graphs. Specifically,
+16 74
+fail on heterophilic graphs and others embodying numerous missing this methodology follows a two-step workflow, where the first step
+17 75
+or noisy links, which are widely present in real life. seeks to generate informative feature vectors for nodes in the input
+18 76
+To bridge this gap, this paper presents DGAC, an effective graph- graph via GNNs, while the latter focuses on transforming node
+19 77
+agnostic solution for graph clustering. Particularly, DGAC over- features into clustering results using the 𝐾-Means, spectral cluster-
+20 78
+comes the limitations of prior works by exploiting the high-order ing, or MLP. The design recipes for GNNs are built on the graph
+21 79
+connectivity of nodes within not only the input graph G but also diffusion [21, 36] operations, which aggregate features from direct
+22 80
+the affinity graph H underlying the attribute data. To achieve this or indirect neighboring nodes based on their (high-order) structural
+23 81
+goal, we first unify the embedding and clustering generations into a connectivity.
+24 82
+coherent framework optimizing the Dirichlet Energy on both G and As pinpointed by our theoretical investigation, GNNs are essen-
+25 83
+H. Based thereon, theoretically-grounded solvers are developed for tially minimize the Dirichlet Energy (DE) [26] of the node represen-
+26 84
+efficient constructions of the embeddings and clusters, which cap- tations over the input graph topology, which enforces node features
+27 85
+ture high-order semantics from G or H via graph diffusion. On top align with the graph connectivity and comply with the homophily
+28 86
+of that, DGAC includes three training loss functions that facilitate assumption [52]. That is, nodes that are adjacent or strongly con-
+29 87
+effective feature extraction and clustering. Extensive experiments, nected should fall into the same classes or clusters. Intuitively, over
+30 88
+comparing DGAC against 12 baselines over 12 homophilic or het- graphs with high homophily ratio (HR) [85], i.e., the fraction of
+31 89
+erophilic graph datasets, showcase that DGAC consistently and edges whose endpoints are in the same ground-truth class/cluster,
+32 90
+considerably outperforms all competitors in terms of clustering optimizing the DE-based objectives leads to desired node features
+33 91
+quality measured against ground truth labels. and clustering results. Nevertheless, this homophily assumption
+34 92
+is not necessarily valid in practice. Real-world graph datasets are
+35 93
+36 CCS CONCEPTS often heterophilic (i.e., the homophily ratio is low), noisy, or incom- 94
+plete. As an aftermath, the majority of existing GNNs largely fail
+37 • Information systems → Clustering. 95
+on such datasets.
+38 96
+Despite a series of heterophilic GNN models [47, 48, 83] proposed
+39 KEYWORDS recently, they are primarily designed for node classification under 97
+40 98
+Graph clustering, Dirichlet Energy, affinity graph, graph neural supervised settings, and thus, cannot be readily applied for graph
+41 99
+network, heterophily graph clustering, contrastive learning clustering due to the absence of node labels. To our knowledge, a
+42 100
+paucity of efforts [22, 56] has been invested towards addressing
+43 101
+heterophily issues for graph clustering. Similar in spirit to previous
+ACM Reference Format:
+44 102
+Anonymous Author(s). 2018. Diffusion-based Graph-agnostic Clustering. In heterophilic GNNs for node classification, these models focus on
+45 103
+Proceedings of ACM Conference (Conference’17). ACM, New York, NY, USA, increasing the homophily ratio of the input graph by rewiring its
+46 15 pages. https://doi.org/XXXXXXX.XXXXXXX topology with node attributes as ancillary information. To ascer- 104
+47 105
+tain the correlation between graph topology and node attributes,
+48 106
+Table 1 reports the accuracy obtained by clustering the adjacency
+49 107
+Permission to make digital or hard copies of all or part of this work for personal or matrix A and attribute matrix X of real heterophilic graph datasets
+50 108
+classroom use is granted without fee provided that copies are not made or distributed (See Table 3) with 𝐾-Means severally, as well as the degree of over-
+51 for profit or commercial advantage and that copies bear this notice and the full citation 109
+lap between these two independent clustering results. It can be
+52 on the first page. Copyrights for components of this work owned by others than ACM 110
+must be honored. Abstracting with credit is permitted. To copy otherwise, or republish, observed that the overlap degree is conspicuously lower than the
+53 to post on servers or to redistribute to lists, requires prior specific permission and/or a clustering accuracy on X, indicating that node attributes embody a 111
+54 fee. Request permissions from permissions@acm.org. 112
+wealth of unique information that is crucial for accurate clustering.
+55 Conference’17, July 2017, Washington, DC, USA 113
+© 2018 Association for Computing Machinery. However, existing works merely leverage it to refine the original
+56 114
+ACM ISBN 978-1-4503-XXXX-X/18/06...$15.00
+57 https://doi.org/XXXXXXX.XXXXXXX 115
+58 1 116
+
+--- PAGE 2 ---
+Conference’17, July 2017, Washington, DC, USA Anon. Submission Id: 1776
+117 Table 1: Overlap of clustering results on real graphs. generalized neighbor capturing. These existing methods empha- 175
+118 Dataset Acc. (X) Acc. (A) Overlap size explicit discrimination between homophilic and heterophilic 176
+119 structures, yet they overlook the inherent affinity relationships 177
+Texas 0.49 0.54 0.40
+120 Cornell 0.49 0.51 0.41 underlying the attribute information that facilitates heterophilic 178
+121 Flickr 0.34 0.20 0.23 graph clustering. 179
+122 A detailed introduction to existing attributed graph clustering 180
+123 graph, without considering the inherent structures underlying X, methods and heterophilic graph neural networks can be found in 181
+124 and thus, compromise the result quality. Appendix B, most of which rely on homophily assumption or node 182
+125 In response, this paper presents DGAC, a Diffusion-based Graph- labels for supervision, limiting their applicability in heterophilic 183
+126 Agnostic Clustering method, which achieves high clustering effec- graph clustering. 184
+127 tiveness over both homophilic and heterophilic graphs. At a high 185
+128 level, DGAC overcomes the deficiencies of prior works by capturing 3 PRELIMINARIES 186
+129 the high-order node connectivity over the input graph G and the 187
+3.1 Notations and Terminology
+130 affinity graph H underlying the attribute data simultaneously. 188
+131 More concretely, DGAC first integrates the classic GNNs and Let G = (V, E, X) be an attributed graph, where V is a set of 𝑛 189
+132 spectral clustering into a unified framework that minimizes the DE nodes and E is a set of 𝑚 edges. For each edge (𝑣 𝑖 , 𝑣 𝑖 ) ∈ E, we 190
+133 of embeddings and clustering results on the input graph through say 𝑣 𝑖 and 𝑣 𝑗 are neighbors to each other, and we use N (𝑣 𝑖 ) to 191
+134 rigorous theoretical analyses. Guided by this principle, we first denote the set of neighbors of 𝑣 𝑖 , with the degree 𝑑 (𝑣 𝑖 ) = |N (𝑣 𝑖 )|. 192
+135 propose to jointly optimize the DE-based objectives over G and H X ∈ R 𝑛×𝑓 is the input attribute matrix of nodes, where each row 193
+136 for representation learning, which leads to the design of our dual X𝑖 stands for the attributes associated with node 𝑣 𝑖 and satisfies 194
+137 graph diffusion networks (DGDNs). Distinct from GNNs, DGDNs ∥X𝑖 ∥2 = 1. We use A to symbolize the adjacency matrix of G, where 195
+138 incorporate the high-order node connectivity on two graphs into A𝑖,𝑗 = 1 if there is an edge (𝑣 𝑖 , 𝑣 𝑗 ) ∈ E, and otherwise A𝑖,𝑗 = 0, 196
+139 the node features through topology- and attribute-based graph and D to denote the degree matrix of G. Accordingly, L = D − A 197
+140 diffusion, followed by a feature fusion reconciling information from represents the Laplacian matrix of G. A ˜ = D− 1 2 AD− 2 1 and I − A ˜ are 198
+141 two data modalities i.e., structures and attributes. On top of that, the normalized adjacency and Laplacian matrices of G, respectively. 199
+142 we formulate another DE-based joint optimization problem upon Graph Diffusion. Given a graph G and an initial mass 𝑥 at seed 200
+143 the learned node features and input graph topology and develop a node 𝑣 𝑠 ∈ V, the graph diffusion [21, 36] is to spread the mass from 201
+144 graph diffusion-based solver for efficient clustering. Furthermore, 𝑣 𝑠 to its direct or indirect neighboring nodes along the edges in G. 202
+145 a hierarchical contrastive loss for extracting features from two The resulting distribution of mass at nodes is referred to a graph 203
+146 data modalities, an infoNCE loss for clustering quality assessment, diffusion distribution, wherein the value at each node 𝑣 𝑖 reflects the 204
+147 and a reconstruction loss to ensure the preservation of the input strength of connections between 𝑣 𝑠 and 𝑣 𝑖 . In mathematical terms, 205
+this process can be expressed by
+148 graph structures and attributes, are devised to facilitate the model 206
+149 training in DGAC. Our extensive experimental studies, comparing
+∞ ∞
+207
+150 DGAC against 12 baselines over 12 homophilic or heterophilic p = x · ∑︁ 𝑤ℓ P ℓ, where ∑︁ 𝑤ℓ = 1, (1) 208
+151 graph datasets, demonstrate that DGAC is consistently superior to ℓ=0 ℓ=0 209
+152 all baselines in terms of clustering accuracy evaluated against the 210
+153 ground-truth cluster labels. In particular, on the largest homophilic x has a positive value at 𝑠-th entry and 0 everywhere else, 𝑤 ℓ sig- 211
+nifies the fraction of mass disseminated to all the nodes at ℓ-hops
+1 1 5 5 4 5 g to ra o p b h ta B in log a C s a u t b a s lo ta g n , t a ia n l d g h a e in ter o o f p 1 h 8 il .5 ic 9% gra a p n h d F 1 l 1 i . c 1 k 2 r % , D in GA cl C us i t s er a i b n l g e w aw h a ic y h f c r a o n m b s e e t e h d e n tr o a d n e si 𝑣 t 𝑠 io . n P m st a a t n ri d x s D fo − r 1 A th o e r d n iff or u m si a o l n ize m d a a t d ri j x ac o e f nc G y , 2 2 1 1 2 3
+1
+1
+5
+5
+6
+7
+accuracy, respectively. matrix A ˆ . Particularly, when P = D−1 A and x𝑠 = 1, the graph diffu- 2
+2
+1
+1
+4
+5
+sion distribution in Eq. (1) is essentially the prominent personalized
+158 2 RELATED WORK 216
+159 PageRank [29] if 𝑤 ℓ follows a geometric distribution and the heat 217
+160 Heterophilic Graph Clustering. Dealing with heterophilic graphs kernel PageRank [36] if 𝑤 ℓ is drawn from a Poisson distribution. 218
+161 in unsupervised settings is particularly challenging due to the ab- Graph Clustering. Given an attributed graph G = (V, E, X) and 219
+162 sence of node label guidance, as noted in previous work [9, 56, the number 𝐾 of clusters, the overreaching goal of graph clustering 220
+163 84]. Existing heterophilic graph clustering methods often utilize is to partition the node set V into 𝐾 disjoint groups {C1, . . . , C𝐾 } 221
+164 attribute information to refine the graph structure. Specifically, (i.e., (cid:208) 𝑘 𝐾 =1 C𝑘 = V and C𝑖 ∩ C𝑗 = ∅ for 𝑖 ≠ 𝑗), such that nodes with 222
+165 DGCN [56] and PFGC [74] leverage the attribute (dis)similarity strong connectivity and high attribute homogeneity are in the same 223
+166 between connected nodes to construct two graphs that are highly group, while distant and dissimilar ones fall into distinct clusters. 224
+As in common practice, the clustering result can be represented by
+167 homophilic and heterophilic, respectively. These graphs are then 225
+168 processed using low-pass and high-pass filters to capture holistic a Normalized Cluster Indicator (NCI) Y ∈ R 𝑛×𝐾 defined as follows: 226
+169 information. HoLe [22] aims to enhance the homophily degree 227
+170 by refining the graph topology based on high-confidence cluster- C𝑖,𝑗 =  √ | 1 C𝑗 | , if 𝑣𝑖 ∈ C𝑗, (2) 228
+171 ing results. Additionally, HGRL [9] is a self-supervised learning  0, otherwise. 229
+172 method that learns informative representations for heterophilic  230
+173 graphs through two pretext tasks: original feature preserving and In particular, the columns of C are orthonormal, i.e., C⊤C = I. 231
+174 2 232
+
+--- PAGE 3 ---
+Diffusion-based Graph-agnostic Clustering Conference’17, July 2017, Washington, DC, USA
+233 3.2 Spectral Graph Clustering Table 2: Homophily ratios of G and H. 291
+234 Spectral clustering [70] is a canonical technique for graph clustering, Texas Wisconsin Cornell Flickr 292
+235 which seeks to partition nodes based on optimizing an objective 293
+236 that minimizes their intra-cluster connectivity, regardless the node HR G 0.108 0.196 0.305 0.239 294
+237
+attributes. One standard formulation of such objectives is the Rati- HR
+H
+0.422↑ 0.399↑ 0.422↑ 0.413↑
+295
+oCut [23]:
+238 296
+239 min ∑︁ 𝐾 1 ∑︁ A ˜ 𝑖,𝑗 , MLPs, linear layers. Most existing GNN-based graph clustering 297
+240 {C1,...,C𝐾 } 𝑘=1 𝐾 𝑣𝑖 ∈C𝑘,𝑣𝑗 ∈V\C𝑘 | C𝑘 | approaches convert node representations H into the NCI C through 298
+241 the 𝐾-Means [44] or MLP/linear layers [67]. 299
+which is to minimize the average weight of edges connecting
+242 300
+nodes in any two distinct clusters. As analysed in [70], the above
+243 4 SOLUTION OVERVIEW 301
+objective is equivalent to finding an NCI optimizing the following
+244 trace minimization problem: This section first unifies spectral clustering and GNNs into a frame- 302
+245 work minimizing the Dirichlet Energy (DE) through in-depth theo- 303
+246 min trace(C⊤(I − A ˜ )C), (3) retical analyses, followed by delineating the basic idea of DGAC. 304
+C
+247 305
+which is an NP-hard problem given the constraint in Eq. (2) on C. A
+248 4.1 Dirichlet Energy Minimization Framework 306
+common way is to compute an approximate solution by relaxing the
+249 discreteness condition on C and allowing it to take arbitrary values Definition 1 (Dirichlet Energy [26]). Given G and a graph 307
+250 in R such that the column-orthonormal property, i.e., C⊤C = I, still signal x ∈ R 𝑛 , the Dirichlet Energy of x over G is characterized by 308
+251 309
+252 h le o a l d d s s. t B o y th K a y t F th a e n’ o s p t t r i a m ce al m so ax lu im tio iz n at is io t n he pr 𝑘 in -l c a i r p g l e e s [ t 1 e 9 i ] g , e i n t i v m ec m to e r d s ia o t f e A l ˜ y . D(x, A) = 1 2 ∑︁ A𝑖,𝑗 · (x𝑖 − x𝑗 ) 2 = x⊤Lx. 310
+253
+The 𝐾-Means or rounding algorithms [62, 78] are then applied to
+𝑣𝑖,𝑣𝑗 ∈V 311
+254 Definition 1 presents the formal definition of the DE, which 312
+convert the 𝑘-largest eigenvectors into an NCI.
+255 intrinsically measures the locality-preserving power of a given 313
+256
+3.3 Graph Neural Networks
+signal x, i.e., its consistency of the distribution of signal values at 314
+257 nodes within the input graph structure [76]. 315
+258 As demystified in recent works [51, 77, 86], after removing the non- 316
+259 linearity, a majority of existing popular GNNs [10, 20, 21, 35, 72, 75] Lemma 2. HRG = 1 2 − | E 1 | (cid:205) 𝑘 𝐾 =1 D(Y·,𝑘 , A). 317
+2 2 6 6 0 1 c fo a r n m b u e la u te n d ifi b e e d lo i w nt : o the graph Laplacian smoothing [15] problem Let Y ∈ R 𝑛×𝐾 be the ground-truth node-cluster membership ma- 3 3 1 1 8 9
+trix of G where Y𝑖,𝑘 = 1 if 𝑣 𝑖 ∈ C𝑘 and 0 otherwise. Our analysis in
+262 min(1 − 𝛼) · ∥H − X∥ 2 𝐹 + 𝛼 · trace(H⊤(I − A ˜ )H), (4) Lemma 21 establishes a theoretical relation between the homophily 320
+263 H 321
+264 where H denotes the target node features and 𝛼 stands for a co- ratio HR G of G and the overall DE of Y over G. Intuitively, the 322
+larger the homophily ratio of G is, the smaller the DE of Y is.
+265 efficient striking a balance between two terms. The first term re- 323
+Further, based on the definition of matrix trace, we can derive the
+266 duces the discrepancy between the initial node features X and following equivalence between DE and the objectives of spectral 324
+267 its smoothed version H, while the latter can be rewritten as 𝛼 · clustering and GNNs (i.e., Eq. (3) and Eq. (4)): 325
+268 (cid:205) (𝑣𝑖,𝑣𝑖 ) ∈ E ∥H𝑖 / √︁𝑑 (𝑣 𝑖 ) − H𝑗 / √︁𝑑 (𝑣 𝑗 )∥𝑧 2, meaning that the node fea- 𝐾 326
+269 tures of adjacent nodes are enforced to be similar. trace(C⊤ (I − A ˜ )C) = ∑︁ D (C·,𝑘 , A ˜ ), 327
+270 Lemma 1 ([27]). Let M be a matrix whose dominant eigenvalue 𝜆 𝑘=1 (5) 328
+2 2
+2
+7 7
+7
+1 2
+3
+s
+c
+a
+a
+t
+n
+is
+b
+fi
+e
+es
+ex
+|𝜆
+pa
+|
+n
+<
+de
+1
+d
+. T
+a
+h
+s
+e
+a
+n
+N
+, I
+e
+−
+um
+M
+an
+is
+n
+i
+s
+n
+e
+v
+r
+e
+ie
+rt
+s
+i
+:
+b
+(
+l
+I
+e,
+−
+a
+M
+nd
+)−
+it
+1
+s i
+=
+nv
+(cid:205)
+er
+ℓ ∞
+s
+=
+e
+0
+(
+M
+I
+ℓ
+−
+.
+M)−1 trace(H⊤ (I − A ˜ )H) = ∑︁
+𝑖
+𝑑
+=1
+D (H·,𝑖, A ˜ ). 3 3
+3
+2 3
+3
+9 0
+1
+274 By setting the derivative of Eq. (4) w.r.t. H to zero, the optimal This finding reveals that the fundamental principles of both spectral 332
+275 H can be given by H = (1 − 𝛼) · (I − 𝛼A ˜ )−1 X [77]. Given the fact clustering and GNNs are built on minimizing the overall DE of their 333
+276 that the eigenvalues of A ˜ lie in [−1, 1] [13], Lemma 1 implies that results over the input graph G. According to Lemma 2, when the 334
+2 2 7 7 7 8 H rew = ri (cid:205) te ℓ ∞ i = t 0 a ( s 1 fo − ll 𝛼 o ) w 𝛼 s ℓ A w ˜ ℓ it · h X th . e Fo 𝑖- r th ea c c o h lu 𝑖 m -th n x co o lu f m X: n h of H, we can h C o a m n o d p n h o il d y e r r a e t p io re o s f e G nta is ti h o i n g s h H , d y o i i e n l g d s c o lu e s s t s e e r n in ti g al r l e y s r u e l n ts d c e l r o s s t e h t e o N th C e I 3 3 3 3 5 6
+279 ∞
+ground-truth Y. As pinpointed in Section 3.3, GNNs leverage the
+337
+280 h⊤ = x⊤ · ∑︁ (1 − 𝛼 )𝛼ℓ A ˜ ℓ . graph diffusion to incorporate high-order connectivity between 338
+281 ℓ=0 nodes into the construction of H, thereby reinforcing the optimiza- 339
+This is essentially a graph diffusion distribution with the initial tion of its DE.
+282 340
+283 mass for all nodes specified in z. In other words, the columns of H 341
+correspond to the graph diffusion distributions of 𝑑 attributes of 4.2 High-Level Idea
+284 342
+285
+nodes over G. Aside from the above graph diffusion that is adopted As reported in Table 2, the homophily ratios of practical graph
+343
+286 in [20], other diffusion forms include (I + A ˜ )Z in GCN [35], A ˜ ℓ X datasets are often low, due to their heterophilic nature or the pres- 344
+287 in [72], (cid:205) ℓ ∞ =0 𝑒− ℓ 𝑡 ! ·𝑡𝑖 A ˜ ℓ · Z in [21], etc. Note that in these models, e m n i c z e in o g f t n h o e is a y bo a v n e d -s m ai i d ss D in E g -b li a n s k e s d . N ob a j t e u c r t a iv ll e y s , o le n ad su s c t h o g u r n a d p e h r s m , o in p e t d i- 345
+288 the node features H will further be transformed into the final node 346
+289 representations through layer-wise feature transformations, e.g., 1All proofs appear in Appendix A. 347
+290 3 348
+
+--- PAGE 4 ---
+Conference’17, July 2017, Washington, DC, USA Anon. Submission Id: 1776
+349 5.1 Dual Graph Diffusion Networks 407
+350 Following our idea in Section 4.2, DGDN creates H by optimizing 408
+351 Hierarchical the following DE-based objectives simultaneously: 409
+Contrastive Loss
+352 𝒢 𝐇(") 𝒢 𝑑 410
+353 Clustering Loss min ∑︁ D (H·,𝑖, A ˜ ) + D (H·,𝑖, S ˜ ) (9) 411
+354
+H⊤H=I
+𝑖=1 412
+𝐇
+355 𝒢 = (𝒱, ℰ, 𝐗) Reconstruction Loss The orthogonality constraint H⊤H = I is introduced to avoid trivial 413
+356 ℋ 𝐇($) 𝐂 O T b r j a e i c n t i i n v g e s s In olu d t o i i o n n g s s in o c , e w i e t l c im an its ad th d e iti f o ea n s a i l b l l y e m do it m ig a a in te to th a e S f t e ie a f t e u l r m e a c n o i r f r o e l l d a [ ti 4 o 1 n ]. 414
+357 415
+Dual Graph Graph Diffusion issue [31, 40]. As per Eq. (5), the above optimization objective can
+358 Diffusion Networks Clustering 416
+be rewritten as a joint trace minimization problem:
+359 Figure 1: Overview of DGAC. 417
+360 min trace(H⊤ (I − A ˜ )H) + trace(H⊤ (I − S ˜ )H). 418
+361
+H⊤H=I
+419
+embedding and clustering quality. By contrast, in Table 2, their As remarked earlier in Section 3.2, by Ky Fan’s trace maximiza-
+362 corresponding affinity graphs H, that are constructed from their tion principle [19], the optimal solutions to trace minimization 420
+3 3 6 6 3 4 associated attribute matrices X with edge weights calculated via p S ˜ ) r H ob ) le a m re s t m he in 𝑑 H -l ⊤ a H rg = e I s t t ra e c ig e e ( n H v ⊤ ec (I to − r A s ˜ ) B H a ) n a d n U d m of in A ˜ H a ⊤ n H d = S I ˜, tr r a e c sp e e (H ct ⊤ iv ( e I l − y. 4 4 2 2 1 2
+365 S𝑖𝑗 = X𝑖 · X⊤ 𝑗 ∀𝑣𝑖, 𝑣𝑗 ∈ V, (6) As such, we can transform Eq. (9) into two optimization problems: 423
+366 424
+367 exihibit much higher degrees of homophily. min 𝛼 · trace(H⊤ (I − A ˜ )H) + ∥H − U∥ 𝐹 2 , (10) 425
+This motivates our rudimentary idea of capitalizing on the inher- H
+368 ent structures of the attribute data, i.e., the affinity graph underlying min ∥H − B∥ 𝐹 2 + 𝛼 · trace(H⊤ (I − S ˜ )H), (11) 426
+369 H 427
+3 3 7 7 0 1 X is , , a w s e c a o d m d p it le io m n e a n ll t y ar m y i s n i i g m na iz ls e f t o h r e t o h v e e c r o a m ll p D u E ta o ti f o H ns o o v f e H r H an : d C. That i e s a t c h h en of se w ek h i i n ch g t p h a e rt s i o a l l u ly tio o n p s tim H( i 𝑡 z ) es an E d q. H (9 (𝑎 ). ) O to n t t h h e i s s e b t a w si o s, p o r u ob r l i e d m ea s 4 4 2 2 8 9
+372 𝑑 and coalesce them as the final node representations H. Specifically, 430
+373 ∑︁ D (H·,𝑖, S ˜ ), (7) DGDN computes H(𝑡 ) and H(𝑎) via topology-based and attribute- 431
+374 𝑖=1 based graph diffusion, respectively. 432
+375 where S ˜ stands for the symmetrically normalized version of S, i.e., Topology-based Graph Diffusion. Firstly, we can see that the op- 433
+376 diag((cid:205) 𝑗 S:,𝑗 )−1/2 · S · diag((cid:205) 𝑗 S:,𝑗 )−1/2. Ideally, H should capture timization problem in Eq. (10) is exactly a graph Laplacian smooth- 434
+377 the high-order node connectivity on both G and H. ing mentioned in Section 3.3. Using Lemma 1, its solution with 𝐿 𝑡 435
+378 In the same vein, the NCI C can be derived from H and G based iterations is a graph diffusion of U over G: 436
+379 on minimizing the overall DE as follows: 𝐿𝑡 437
+380 H(𝑡) = ∑︁ 𝛼ℓ A ˜ ℓ U, (12) 438
+3 3 8 8 1 2 m C⊤ in C 𝑘 ∑︁ 𝐾 =1 (1 − 𝛾 ) · D (C·,𝑘 , 𝚫) + 𝛾 · D (C·,𝑘 , A ˜ ). (8) where the columns of U are the ℓ= 𝑑 0 -largest eigenvectors of S ˜. 4 4 3 4 9 0
+383 441
+384 𝚫 corresponds to the affinity graph underlying the node features H Lemma 3. The columns of U are the top-𝑑 left singular vectors of 442
+385 and 𝛾 is a weight balancing two terms. The second term D(C·,𝑘 , A ˜ ) X, where X = diag(d)−1/2 X and d = X · ((cid:205) 𝑣𝑖 ∈V X𝑖 )⊤. 443
+386 is to explicitly injects the graph connectivity, as H tends to lose Lemma 3 suggests that we can obtain U via a truncated singular 444
+387 such information as an aftermath of the inherent issues of GNNs, value decomposition (SVD) of X, without direct eigen-decomposition 445
+388 i.e., over-smoothing and over-squashing . of S ˜, and hence, eliminate the need of the explicit materialization 446
+389 In turn, there remain two crucial technical issues to be addressed: of affinity matrix S ˜. 447
+390 • How to construct node representations H by optimizing its DE With the close connection of SVD to principal component anal- 448
+391 over G and H simultaneously? ysis (PCA), U are actually the principal components, i.e., key fea- 449
+392 • How to derive the NCI C from H and G by solving Eq. (8)? tures, from the normalized attribute matrix X. That is to say, our 450
+393 topology-based graph diffusion in Eq. (12) generates node features 451
+394 5 THE DGAC METHOD that incorporate the high-order connectivity of nodes on G and 452
+395 key features extracted from the attribute data X. Given this inter- 453
+396 In this section, we present our graph-agnostic clustering solution pretation, another practical way is to apply an MLP over X or XX⊤ 454
+397 DGAC for addressing the problems remarked in preceding section. to extract such key features as U. 455
+398 The pipeline of DGAC is illustrated in Figure 1, which involves 456
+399 three major components. We begin with elucidating our dual graph Lemma 4. The dominant eigenvalue 𝜆 of S ˜ satisfies |𝜆| ≤ 1. 457
+400 diffusion networks (DGDN) designed for constructing node repre- 458
+401 sentations H in Sections 5.1. The succeeding section (Section 5.2) Attribute-based Graph Diffusion. Next, we solve another opti- 459
+402 describes the algorithmic details of our graph diffusion clustering mization problem in Eq. (11) to get H(𝑎) , which can also be cast into 460
+403 (GDC) for NCI computation. In Sections 5.3 and 5.4, we introduce a graph Laplacian smoothing problem in Eq. (4) with Lemma 1 and 4. 461
+404 the training objectives for the model and provide related theoretical Let B be the 𝑑-largest eigenvectors of the normalized adjacency 462
+405 analyses, respectively. matrix A ˜ , which commonly serves as the structural embeddings of 463
+406 4 464
+
+--- PAGE 5 ---
+Diffusion-based Graph-agnostic Clustering Conference’17, July 2017, Washington, DC, USA
+465 nodes in the literature [17, 66, 79, 82]. The node features H(𝑎) thus which is also a graph diffusion of C(0) over graph G. 523
+466 can be calculated by graph diffusion of B over the affinity graph H: 524
+4
+4
+6
+6
+7
+8 H(𝑎) = ∑︁
+𝐿𝑎
+𝛼ℓ S ˜ℓ B. (13) T
+5
+o
+.3
+facil
+T
+ita
+r
+t
+a
+e
+i
+t
+n
+he
+in
+m
+g
+od
+O
+el
+b
+tr
+j
+a
+e
+in
+c
+i
+t
+n
+i
+g
+v
+a
+e
+n
+s
+d the learning of parameters W(𝑡 )
+5
+5
+2
+2
+5
+6
+469 ℓ=0 and W(𝑎) in Eq. (14), we introduce three training loss functions 527
+4
+4
+7
+7
+0
+1
+N
+by
+o
+p
+t
+a
+e
+s
+t
+s
+h
+t
+a
+h
+t
+e
+s
+m
+in
+a
+c
+t
+e
+e
+S
+r
+˜
+ia
+=
+liz
+X
+a
+X
+ti
+⊤
+on
+w
+o
+i
+f
+th
+S ˜
+X
+in
+d
+th
+efi
+e
+n
+c
+e
+o
+d
+ur
+i
+s
+n
+e
+L
+o
+e
+f
+m
+co
+m
+m
+a
+p
+3
+u
+,
+t
+w
+in
+e
+g
+c
+H
+an
+(𝑎
+a
+)
+l
+b
+so
+y
+L𝑐𝑜𝑛𝑡 + L𝑐𝑙𝑢𝑠𝑡𝑒𝑟 + L𝑟𝑒𝑐𝑜𝑛𝑠 . (17) 5
+5
+2
+2
+8
+9
+472 530
+reordering the matrix multiplications in Eq. (13). Hierarchical Contrastive Loss. In Section 5.1, we obtain Z(𝑡 ) and
+473 531
+In analogy to our interpretation of H(𝑎) , our attribute-based Z(𝑎) , both of which are transformed from solutions to Eq. (9) from
+474 532
+graph diffusion is to integrate the high-order node connectivity in different optimization views. We propose a hierarchical contrastive
+475 533
+H and structural features from G into node features H(𝑎) . loss to minimize the variance between the two views. Firstly, we
+476 534
+expect the topology and attribute representations of the same node
+477 Feature Fusion. As aforementioned, H(𝑡 ) and H(𝑎) focus on en- 535
+to be similar to capture the inherent invariance:
+478 coding the node connectivity on G and H, respectively, both of 536
+479 w
+tio
+h
+n
+ic
+,
+h
+si
+p
+n
+a
+c
+r
+e
+ti
+t
+a
+h
+l
+e
+ly
+y
+o
+a
+p
+re
+tim
+m
+i
+a
+z
+i
+e
+nl
+t
+y
+he
+co
+o
+n
+v
+s
+e
+t
+r
+r
+a
+u
+l
+c
+l
+t
+o
+e
+b
+d
+je
+b
+c
+a
+t
+s
+iv
+ed
+e i
+o
+n
+n
+E
+d
+q
+a
+.
+t
+(
+a
+9)
+f
+.
+ro
+In
+m
+a
+t
+d
+w
+d
+o
+i- L𝑛𝑜𝑑 = ∥Z(𝑡 ) − Z(𝑎) ∥ 2
+𝐹
+. 537
+480 538
+different modalities, i.e., graph and attributes, we first align their se- However, constructing positive pairs from the same node under
+481 539
+mantics using layer-wise feature transformations parameterized by two optimization views neglects the local and intra-cluster invari-
+482 learnable weights W(𝑡 ) and W(𝑎) , respectively, before the fusion. ance [24]. In other words, nodes with strong affinity or topologi- 540
+483 cal connections and nodes within the same cluster should also be 541
+484 Mathematically, DGDN combines H(𝑡 ) and H(𝑎) as H by considered positive pairs. Thus, we additionally introduce the con- 542
+485 Z(𝑡) = H(𝑡) W(𝑡), Z(𝑎) = H(𝑎) W(𝑎), H = 𝛽 · Z(𝑡) + (1 − 𝛽 ) · Z(𝑎), (14) trastive losses from neighbor and cluster levels. Specifically, we aim 543
+486 to maximize the similarity between the anchor representation and 544
+487
+where 𝛽 ∈ (0, 1) is a trade-off parameter. An 𝐿2 normalization will
+the semantic representation derived from the local neighborhood: 545
+be applied to each row of Z afterward, to ensure each feature vector
+4 4 8 8 8 9 has a unit length, i.e., ∥H𝑖 ∥2 = 1 ∀𝑣 𝑖 ∈ V. L𝑛𝑒𝑖 (Z(𝑡), Z(𝑎) ) =
+𝑣
+∑︁
+𝑖 ∈V
+∥Z𝑖 (𝑡) − 𝑑 ( 1 𝑣𝑖 )
+𝑣𝑗 ∈
+∑︁
+N(𝑣𝑖 )
+Z ( 𝑗 𝑎) ∥2 2. 5 5 4 4 6 7
+490 548
+5.2 Graph Diffusion Clustering Furthermore, we introduce the cluster-level loss to preserve the
+491 549
+Given node representations H, its underlying affinity graph can be intra-cluster semantic similarity across different views:
+492 550
+4
+4
+9
+9
+3
+4
+c N o C n I st c r o u m ct p e u d t b a y tio H n H in ⊤. E B q a . s ( e 8 d ) c th an er b e e on r , ef t o h r e m o u p l t a im te i d za a t s ion objective for L𝑐𝑙𝑢 (Z(𝑡), Z(𝑎) ) = ∑︁ 𝐾 ∑︁ ∥Z𝑖 (𝑡) − Z𝑘 (𝑎) ∥2 2, 5
+5
+5
+5
+1
+2
+495 min trace(C⊤ (I − 𝚫)C) + 𝛾 · trace(C⊤ (I − A ˜ )C) (15) 𝑘=1 𝑣𝑖 ∈C𝑘 553
+496 using the f
+C
+a
+⊤
+ct
+C
+in Eq. (5). Again, by the Ky Fan’s trace maximization where Z𝑘
+(𝑎)
+is the centroid of cluster C𝑘 from the view of attribute- 554
+497 principle [19], a simple and direct approach to solve this problem aware embedding Z(𝑎) , and can be computed by 555
+4 4 9 9 8 9 i t s hi t s o w co a n y d r u e c q t u t i h re e s e m ig a e t n e - r d ia e l c iz o i m ng po 𝚫 si + tio 𝛾 n · o A ˜ f e 𝚫 xp + li 𝛾 ci · tl A ˜ y, . l U e n ad fo in rt g u t n o at p e r l o y - , Z𝑘 (𝑎) = ∑︁ C𝑖𝑘 Z𝑖 (𝑎) / ∑︁ C𝑖𝑘 , 5 5 5 5 6 7
+500 hibitively expensive computational and space costs of 𝑂 (𝑛2). 𝑣𝑖 ∈C𝑘 𝑣𝑖 ∈C𝑘 558
+501 with C obtained in Section 5.2. Finally, we include another term to 559
+502 Lemma 5. Let H𝑘 = | C 1 𝑘 | (cid:205) 𝑣𝑖 ∈ C𝑘 H𝑖 be the centroid embedding of d in e g co d r e r g e e la n t e e r d at im ed en em sio b n ed s d o i f n l g e s ar [ n 31 e , d 4 r 0 e ] p : resentations, avoiding learn- 560
+503 cluster C𝑘 . Then, 561
+504 𝐾 L𝑑𝑒𝑐 = ∥Z(𝑡)⊤Z(𝑡) − I∥ 𝐹 2 + ∥Z(𝑎)⊤Z(𝑎) − I∥ 𝐹 2 . 562
+505 min trace(C⊤ (I − 𝚫)C) ⇐⇒ min ∑︁ ∑︁ ∥H𝑖 − H𝑘 ∥2 2. Putting these terms together, we can obtain our hierarchical con- 563
+506 C⊤C=I C⊤C=I 𝑘 𝑣𝑖 ∈C𝑘 trastive loss, which reduces the variance between representations 564
+507 Our theoretical outcome in Lemma 5 reveals that minimizing under different optimization views from three levels: 565
+508 the first term of our objective in Eq. (15) is equivalent to minimiz- L𝑐𝑜𝑛𝑡 = 𝑤 𝑑𝑒𝑐 · L𝑑𝑒𝑐 + 𝑤𝑐𝑜𝑛𝑡 · ( L𝑛𝑜𝑑 566
+509 ing the within cluster sum of squares (WCSS) of the node feature 567
+510 vectors in H, which is exactly the objective function of the pop- + L𝑛𝑒𝑖 (Z(𝑡), Z(𝑎) ) + L𝑛𝑒𝑖 (Z(𝑎), Z(𝑡) ) (18) 568
+511 ular 𝐾-Means algorithm. As such, a solution C(0) that optimizes + L𝑐𝑙𝑢 (Z(𝑡), Z(𝑎) ) + L𝑐𝑙𝑢 (Z(𝑎), Z(𝑡) ) ). 569
+512 min C⊤C=I trace(C⊤(I − 𝚫)C) can be efficiently created by execut- 570
+513 ing the 𝐾-Means with H. We can further transform the problem in Clustering Loss. Additionally, we aim to pull each node toward 571
+514 Eq. (15) into the following form: its respective cluster centroid while pushing it away from other 572
+5 5 1 1 5 6 m C in ∥C − C(0) ∥ 𝐹 2 + 𝛾 · trace(C⊤ (I − A ˜ )C), c p l o u r s a t t e e rs an in in th fo e N la C t E en lo t s r s ep [5 re 5 s ] e t n o t e a n ti h o a n n s c p e a t c h e e . S d p is e c c r i i fi m c i a n l a ly ti , o w n e a i m n o co n r g - 5 5 7 7 3 4
+517 which is again a graph Laplacian smoothing as in Eq. (4). Accord- clusters by improving the intra-cluster cohesion and reducing the 575
+518 ingly, the closed-form solution of the NCI C can be approximated inter-cluster similarity: 576
+with 𝐿 iterations:
+519 𝐶 𝐾 577
+5 5 2 2 0 1 C = ∑︁ ℓ 𝐿 = 𝐶 0 𝛾ℓ A ˜ ℓ · C(0), (16) L𝑐𝑙𝑢𝑠𝑡𝑒𝑟 = − 𝑛 1 𝑘 ∑︁ =1 𝑣𝑖 ∑︁ ∈ C𝑘 log (cid:205) 𝑗 e ≠ x 𝑘 p e ( x c p o ( s c ( o H s 𝑖 ( , H H 𝑖 𝑘 , H )/ 𝑗 𝜏 ) ) /𝜏) , (19) 5 5 7 7 8 9
+522 5 580
+
+--- PAGE 6 ---
+Conference’17, July 2017, Washington, DC, USA Anon. Submission Id: 1776
+581 Table 3: Dataset Statistics. are propagated through the graph, and the labels of unknown nodes 639
+582 #Nodes #Edges #Attributes #Clusters HR are determined by aggregating labels from their neighbors. To the 640
+583 Texas 183 325 1,703 5 0.108 best of our knowledge, there are currently no existing methods that 641
+584 Wisconsin 251 515 1,703 5 0.196 combine clustering and clustering result propagation. Additionally, 642
+585 Cornell 183 298 1,703 5 0.305 Section 5.2 demonstrates that diffusing 𝑘-Means clustering results 643
+Squirrel 5,201 108,536 2,089 5 0.223
+586 Chameleon 2,277 18,050 2,325 5 0.235 over the graph G is equivalent to minimizing the Dirichlet Energy 644
+587 Flickr 7,575 239,738 12,047 9 0.239 over both the input graph and affinity graph, which builds a con- 645
+588 Cora 2,708 5,429 1,433 7 0.810 nection between graph diffusion clustering and Dirichlet Energy 646
+589 Citeseer 3,327 4,732 3,703 6 0.739 minimization over attribute graph. 647
+Pubmed 19,717 44,324 500 3 0.771
+590 Mutual information interpretation of hierarchical contrastive 648
+BlogCatalog 5,196 171,743 8,189 6 0.401
+591 BAT 131 1,038 81 4 0.450 loss. Z(𝑡 ) and Z(𝑎) are representations of input attribute data un- 649
+592 UAT 1,190 13,599 239 4 0.698 der different optimization views. Most existing contrastive graph 650
+593 learning methods augment input data into different views through 651
+594 where H𝑘 is the centroid of cluster C𝑘 based on the fused repre- topology or feature revision, while our method implicitly constructs 652
+595 sentation H, cos(·, ·) calculates the cosine similarity, and 𝜏 is the views of input data via different optimization processes, as pre- 653
+596 temperature parameter [73] controlling the sharpness of the loss. sented in Section 5.1. We preserve information that remains in- 654
+597 Reconstruction loss. Finally, to stabilize the training process and variant across different optimization views and minimize noisy 655
+598 preserve input topology and attribute information, we minimize information that varies during augmentation, by minimizing the 656
+599 the reconstruction error between the generated embedding H and hierarchical contrastive loss L𝑐𝑜𝑛𝑡 between Z(𝑡 ) and Z(𝑎) , as pre- 657
+6
+6
+0
+0
+0
+1
+the smoothed features X = (cid:205)𝐿 ℓ= 𝑋 0 𝜂ℓ A ˜ ℓ · X. To align the dimension sented in the following theorem: 6
+6
+5
+5
+8
+9
+between and H and X and reduce the noise in the input feature, we Theorem 1. Let 𝑋 and 𝑆 denote the random variable of input data
+602 660
+first decompose X through SVD with rank 𝑑, obtaining X = PQR⊤. and the implicitly constructed views, respectively. Let Z 𝑆 denote the
+603 Then, we minimize the discrepancy between H and X ˆ = PQ with representation of data 𝑆 and MI(·, ·) represents mutual information. 661
+604 662
+the Scaled Cosine Error objective [28]:
+Then we have
+605 663
+606 L𝑟𝑒𝑐𝑜𝑛𝑠 = 𝑛 1 ∑︁ (1 − cos(H𝑖, X ˆ 𝑖 ) )𝜖, (20) min L𝑐𝑜𝑛𝑡 ⇒ max MI(Z 𝑆, 𝑋 )𝑎𝑛𝑑 min MI(Z 𝑆, 𝑆 |𝑋 ). 664
+607 𝑣𝑖 ∈𝑉 665
+608 where 𝜖 ≥ 1 is the sharpening parameter controlling the weight 6 EXPERIMENTS 666
+609 for hard samples. In this section, we evaluate the effectiveness of DGAC over 12 667
+610 datasets with different degrees of homophily, against 12 baseline 668
+611 5.4 Theoretical Analyses methods. Additionally, we conduct the ablation study, parameter 669
+612 analysis, and embedding visualization to provide deeper insight. 670
+613 Complexity analysis. As established in Lemma 3, we can obtain All experiments are conducted on a Linux machine equipped with 671
+614 the 𝑑-largest eigenvectors U of S ˜ via the truncated SVD of X ∈ 48GB NVIDIA RTX A6000. Code of DGAC can be found in the 672
+615 R 𝑛×𝑓 , reducing the complexity to 𝑂 (𝑛𝑓 𝑑). Thus, the complexity anonymous repository2. 673
+616 of deriving topology-based embedding H(𝑡 ) given in Eq. (12) is 674
+617 𝑂 (𝑚𝑛 + 𝑛𝑓 𝑑). When deriving the attribute-based embedding H(𝑎) 6.1 Experimental Setup 675
+618 in Eq. (13), the complexity of obtaining the 𝑑-largest eigenvectors 676
+619 of sparse A ˜ is 𝑂 (𝑚𝑑). Utilizing S ˜ = XX ⊤ and reordering S ˜ℓ U = Datasets. We evaluate DGAC on a diverse set of 12 real attributed 677
+6 6 2 2 0 1 𝑛 X 𝑓 ( 2 X + ⊤ X 𝑛𝑓 )ℓ 𝑑 − ) 1 . (X ⊤ U), the complexity of generating H(𝑎) is 𝑂 (𝑓 3 + g h r e a t p er h o s p , h co il m ic p d ri a s t i a n s g et 6 s h in et c e lu ro d p e h T il e i x c a a s n [ d 5 6 8] h , o W m i o sc p o h n i s li i c n n [ e 5 t 8 w ], o a r n k d s. C T o h r e - 6 6 7 7 8 9
+622 nell [58], Squirrel and Chameleon [58, 61], as well as Flickr [42]. 680
+Note that the graph diffusion process in Eq. (12) and Eq. (13) need
+623 For homophilic graphs, we incorporate Cora [32],Citeseer [32], 681
+no update during training and can be taken as a pre-processing step,
+624 with a total complexity 𝑂 (𝑓 3 + 𝑛𝑓 2 + 𝑚𝑛 + 𝑛𝑓 𝑑). The computation Pubmed [32], BlogCatalog [42], and BAT and UAT [53, 60]. Detailed 682
+625 descriptions of these datasets are provided in Appendix C.1. The 683
+complexity in each training epoch includes only the transformation
+626 in Eq. (14), which is 𝑂 (𝑛𝑑2), and the graph diffusion clustering in statistics of datasets are presented in Table 3, including the number 684
+627 of nodes, edges, attributes, and the number of ground-truth clusters 685
+Eq. (16), which is 𝑂 (𝑇 · 𝑛𝑑𝐾 + 𝑚𝑛) with 𝑇 denoting the maximum
+628 of each dataset. Following the previous work [2, 9, 14, 22, 44, 56, 67], 686
+iteration in 𝑘-Means.
+629 we utilize the labels as the ground-truth clusters. Additionally, we 687
+630 Connection between GDC and Label Propagation. Lemma 5 report the homophily ratio [85] of each graph, which is computed 688
+631 establishes a connection between Dirichlet Energy of C over the as HR= (cid:205) (𝑣𝑖,𝑣𝑗 ) ∈ E 1(𝑦 𝑣𝑖 = 𝑦 𝑣𝑗 )/|E|, where 𝑦 𝑣𝑖 is the label of 𝑣 𝑖 . 689
+632
+affinity graph HH⊤ and the objective of 𝑘-Means clustering. Build-
+Baselines. We compare our method with representative and state- 690
+ing on this, we transform the minimization of Dirichlet Energy over
+633 of-the-art graph clustering methods and self-supervised learning 691
+6 6 6 3 3 3 4 5 6 b c g e o ra s t s h p , h i w n A ˜ p e , u d w t iff g h r u i a c s p h e h t s h A h ˜ e a a r 𝑘 n e - s d M a a e ffi f a o n n r s m it c y u lu l g a s r t t a i e o p r n h in H s g im H re ⊤ i s la u i r n lt t t o o C E t ( h 0 q ) a . t ( a 1 o lo 6 f n ) l . g a I b n t e h t l h e p i i s r n o p p p r u o a t - - m po e s t e h d o f d o s r . h S e p t e e c r i o fi p c h a i l l l y y, gr o a u p r h c c o l m us p te e r t i i n to g r : s D i G nc C l N ud [ e 56 ( ] i , ) H m o e L t e ho [2 d 2 s ]; p ( r i o i) - 6 6 6 9 9 9 2 3 4
+637 gation algorithm [59]. In the label propagation algorithm, the labels 2https://anonymous.4open.science/r/clustering-03C4 695
+638 6 696
+
+--- PAGE 7 ---
+Diffusion-based Graph-agnostic Clustering Conference’17, July 2017, Washington, DC, USA
+697 Table 4: Clustering results on heterophily graphs. The best and second-best results are indicated in bold and underlined. A 755
+698 baseline is excluded if it cannot finish clustering within 7 days. 756
+699 757
+Texas Wisconsin Cornell Squirrel Chameleon Flickr
+700 Methods Acc. NMI Acc. NMI Acc. NMI Acc. NMI Acc. NMI Acc. NMI Ave. Rank 758
+701 759
+AGE 53.55 12.81 47.25 10.00 40.77 5.88 28.95 4.61 35.68 11.25 46.14 31.22 6.8
+702 MinCutPool 56.07 2.84 47.73 1.36 56.07 4.23 30.37 6.48 35.42 10.42 33.02 17.37 7.5 760
+703 SCGC 45.46 13.46 43.67 8.25 36.94 5.30 27.24 5.24 28.61 4.74 19.17 8.41 10.1 761
+DMoN 59.56 13.54 51.63 6.04 55.74 3.46 26.23 1.59 32.96 11.18 40.44 23.48 7.6
+704 762
+DGCluster 41.64 11.60 31.47 6.99 37.27 3.38 22.71 0.92 31.36 7.56 26.31 11.77 11.3
+705 763
+VGAE 53.55 12.24 47.17 9.51 47.43 4.68 23.72 0.99 33.29 10.39 34.00 19.20 8.7
+706 DGI 48.31 15.94 45.58 15.26 42.51 6.01 27.50 4.40 29.51 4.97 18.88 5.29 8.8 764
+707 CCA-SSG 55.85 6.81 52.03 14.54 57.92 11.84 24.55 2.68 26.48 3.32 27.46 15.52 8.3 765
+708 DGCN 62.19 22.89 59.68 20.63 56.17 5.96 32.84 9.24 41.64 16.95 21.31 5.14 4.7 766
+709 HoLe 46.78 12.54 37.69 15.18 40.87 11.59 30.33 4.49 34.32 7.17 63.00 47.10 7.1 767
+710 HGRL 70.27 41.59 62.23 40.73 69.84 41.51 30.94 8.52 38.73 21.00 50.32 37.44 2.5 768
+PolyGCL 56.50 8.63 62.31 26.15 46.56 5.89 28.16 5.96 36.44 17.59 - - 5.5
+711 769
+712 DGAC 75.08 46.19 80.88 57.58 73.33 43.24 34.43 12.24 42.02 21.99 81.59 66.36 1.0 770
+713 771
+714 772
+Table 5: Clustering results on homophily graphs. The best and second-best results are indicated in bold and underlined.
+715 773
+Cora Citeseer Pubmed BlogCatalog BAT UAT
+716 Methods Ave. Rank 774
+Acc. NMI Acc. NMI Acc. NMI Acc. NMI Acc. NMI Acc. NMI
+717 775
+718 AGE 73.64 57.47 66.66 41.00 71.04 31.41 60.53 39.99 68.55 49.15 54.81 25.70 2.8 776
+MinCutPool 55.30 41.11 49.46 26.10 57.07 23.00 25.47 7.64 51.76 21.58 54.22 23.28 9.8
+719 777
+SCGC 70.07 52.57 66.05 39.68 38.95 0.47 34.38 18.23 74.35 51.14 54.17 27.21 6.0
+720 DMoN 53.22 39.25 50.31 26.97 59.36 19.77 56.20 34.72 57.71 26.47 55.78 25.96 7.4 778
+721 DGCluster 57.98 46.46 39.83 20.72 69.03 28.09 44.46 25.46 51.45 20.77 53.39 21.55 8.8 779
+VGAE 71.65 52.52 55.76 29.22 70.28 32.32 25.09 6.96 65.04 38.89 52.64 23.87 6.9
+722 780
+DGI 71.44 53.15 68.79 43.17 65.09 27.25 49.19 27.04 50.38 24.45 54.32 23.65 5.8
+723 781
+CCA-SSG 67.98 53.35 64.30 38.62 63.78 28.19 30.91 15.64 62.29 41.11 49.70 24.45 6.6
+724 782
+DGCN 33.18 5.88 38.58 14.64 46.30 5.14 30.23 10.75 62.44 40.75 50.18 25.94 9.7
+725 783
+HoLe 67.51 53.49 60.55 34.69 42.87 0.33 64.09 45.59 56.18 41.16 52.12 23.57 7.0
+726 HGRL 69.15 51.14 65.04 38.89 58.67 26.92 58.66 45.29 53.89 35.60 48.18 23.13 7.3 784
+727 PolyGCL 28.99 9.68 30.85 8.24 62.99 24.47 26.62 7.14 48.85 21.07 45.66 14.70 11.7 785
+728 DGAC 75.91 56.18 69.59 43.77 70.82 34.26 75.21 59.90 77.56 52.62 58.57 28.40 1.2 786
+729 787
+730 788
+731 Table 6: Ablation study results. (ARI), and 𝐹1 score, which are also adopted in [9, 44, 45, 56]. Table 4 789
+732 and Table 5 report the clustering performance of DGAC against 12 790
+Texas Cornell Flickr
+733 Methods Acc. NMI Acc. NMI Acc. NMI competitors in terms of accuracy and NMI on 6 heterophilic graphs 791
+734 and 6 homophilic graphs, respectively. Clustering performance in 792
+DGAC 75.08 46.19 73.33 43.24 84.82 70.72
+735 terms of ARI and 𝐹1 score exhibits a similar distribution and can be 793
+736 DGAC-DGDN 70.38 44.90 66.67 40.71 79.39 63.27 found in Appendix C.4. All results reported are the mean over five 794
+737 D D G G A A C C - - G L D 𝑐𝑜 C 𝑛𝑡 7 7 3 1 . . 5 5 0 8 4 4 6 5 . . 0 4 8 1 7 7 2 0 . . 0 6 2 0 4 4 2 0 . . 4 3 6 8 7 8 9 1 . . 7 4 5 9 6 6 6 4 . . 1 2 7 4 repeated runs. 795
+738 As we can see, DGAC exhibits superior clustering performance 796
+739 on real-world graphs with different homophily degrees. On het- 797
+self-supervised learning methods for heterophily graphs: HGRL [9],
+740 erophilic graphs, DGAC consistently outperforms all other competi- 798
+741 PolyGCL [8]; (iii) methods for homophily graph clustering: AGE [14], tors on all 6 graphs in terms of both accuracy and NMI. Specifically, 799
+742 MinCutPool [4], SCGC [44], DMoN [67], DGCluster [2]; and (iv) on the most heterophilic graph Texas with 𝐻𝑅 = 0.11, our DGAC 800
+self-supervised learning methods for homophily graphs: VGAE [34],
+743 achieves 4.81% and 4.6% performance improvement regarding ac- 801
+DGI [69], CCA-SSG [81]. Following the evaluation protocol in [9,
+744 curacy and NMI, respectively. On the social network Flickr, our 802
+46], the 𝑘-Means algorithm is utilized on the learned representations
+745 DGAC outperforms the second-best competitor, HoLe, with a no- 803
+to obtain the final clustering results for self-supervised learning
+746 table improvement of 19.26% regarding NMI. Additionally, it can 804
+methods. The detailed descriptions of the baseline methods can
+747 be observed that the average ranks of the 4 heterophily methods 805
+be found in Appendix C.2. Additionally, we present the detailed
+748 are higher than other homophily methods, which demonstrates 806
+experimental settings in Appendix C.3.
+749 the challenge of heterophilic graph clustering and the necessity of 807
+750 designing heterophily-specific methods. On the homophily graphs, 808
+6.2 Graph Clustering Results
+751 DGAC outperforms other baselines on most homophily graphs 809
+752 We evaluate the graph clustering performance with four metrics: and achieves an average rank of 1.2 over 6 datasets. Specifically, 810
+753 accuracy, normalized mutual information (NMI), adjusted rand index 811
+754 7 812
+
+--- PAGE 8 ---
+Conference’17, July 2017, Washington, DC, USA Anon. Submission Id: 1776
+813 Texas (Acc.) Texas (NMI) NMI, respectively, showing the effectiveness of L𝑐𝑜𝑛𝑡 in leaning 871
+814 Wisconsin (Acc.) Wisconsin (NMI) invariant information between different views. 872
+815 Acc. NMI Acc. NMI 873
+0.82 0.82
+816 0.56 0.56 874
+0.80 0.80
+0.52 0.52
+817 6.4 Parameter Analysis 875
+0.78 0.48 0.78 0.48
+818 0.76 0.44 0.76 0.44 In this section, we analyze the impact of hyper-parameters on the 876
+819 0.74 0.40 0.74 0.40 performance of DGAC. We present the clustering performance on 877
+820 0 1 2 3 4 5 0 1 2 3 4 5 Texas and Wisconsin datasets with varying hyperparameters in 878
+821 (a) Varying 𝐿𝑡 (b) Varying 𝐿𝑎 Figure 2. 879
+822 0.82 Acc. NMI 0.82 Acc. NMI Firstly, we vary the number of diffusion layers 𝐿 𝑡 on A ˜ in Eq. (12), 880
+823 0.80 0.56 0.80 0.56 and 𝐿 𝑎 on S ˜ in Eq. (13), while keeping other parameters fixed. The 881
+824 0.52 0.52 results are shown in Figures 2(a) and 2(b). Setting 𝐿 or 𝐿 to zero 882
+825 0.78 0.48 0.78 0.48 leads to performance decreases on both datasets, d 𝑡 emon 𝑎 strating 883
+826 0.76 0.44 0.76 0.44 the importance of diffusing attribute and connection information 884
+0.74 0.40 0.74 0.40
+827 0 2 4 6 0 0.3 0.5 0.8 1 through G and H. Increasing 𝐿 𝑡 and 𝐿 𝑎 from 0 to 5 improves clus- 885
+828 (c) Varying 𝐿𝐶 (d) Varying 𝛽 tering performance on Wisconsin, while performance on Texas 886
+8 8 2 3 9 0 0.82 Acc. NMI 0.56 0.82 Acc. NMI 0.56 pea N k e s x a t, t w 𝐿 𝑡 e = va 3 ry an th d e 𝐿 n 𝑎 u = m 2 b . er of diffusion layers of DGC in Eq. (16), 8 8 8 8 7 8
+831 0.80 0.52 0.80 0.52 with results presented in Figure 2(c). A notable performance de- 889
+832 0.78 0.48 0.78 0.48 crease is observed at 𝐿 𝐶 = 0, particularly in accuracy, highlighting 890
+833 0.76 0.44 0.76 0.44 the effectiveness of our proposed graph diffusion clustering mecha- 891
+834 0.74 0.40 0.74 0.40 nism. Increasing 𝐿 from 1 to 6 leads to a performance decline on 892
+𝐶
+835 0 0.0001 0.001 0.006 0 0.0001 0.001 0.006 Texas, indicating the importance of an appropriate diffusion depth 893
+836 (e) Varying 𝑤𝑐𝑜𝑛𝑡 (f) Varying 𝑤𝑑𝑒𝑐 for clustering results. Then, we analyze the fusion parameter 𝛽 in 894
+837 Figure 2: Parameter analysis. Eq. (14), as shown in Figure 2(d). With 𝛽 = 0, only Z(𝑎) is used 895
+838 for clustering, while 𝛽 = 1 utilizes only Z(𝑡 ) . The results demon- 896
+839 897
+strate that a proper 𝛽 value is crucial for clustering, reflecting the
+840 compared with the second-best baselines, DGAC takes a lead by importance of considering representations from both views. 898
+841 11.21% on BlogCatalog and 2.79% on BAT in terms of clustering 899
+Furthermore, we investigate the coefficients 𝑤 and 𝑤 in
+842 accuracy. Compared to other heterophily methods, our DGAC ex- L𝑐𝑜𝑛𝑡 (Eq. (18)). Figures 2(e) and 2(f) illustrate t 𝑐 h 𝑜 e 𝑛𝑡 perform 𝑑𝑒 a 𝑐 nce 900
+843 hibits stable and superior clustering performance on homophilic 901
+under varying coefficients. A notable increase in clustering perfor-
+844 graphs, demonstrating the effectiveness of the proposed DE-based 902
+mance on both datasets is observed when the 𝑤 increases from 0
+𝑐𝑜𝑛𝑡
+845 objective which takes into consideration both input graph G and to 0.006, demonstrating the effectiveness of the proposed three-level 903
+846 the underlying affinity graph H.
+contrastive loss. Additionally, regularizing the representations with
+904
+847 905
+the decorrelation 𝑤 is shown to benefit graph clustering. Addi-
+𝑑𝑒𝑐
+848 906
+6.3 Ablation study tionally, we visualize the learned embedding of top-five methods
+849 907
+To analyze the effectiveness of the newly proposed modules inDGAC, to provide more insight, as shown in Appendix C.5.
+850 908
+we introduce three incomplete variants:
+851 909
+852 • DGAC-DGDN removes the dual graph diffusion networks pro- 910
+posed in Section 5.1 and utilizes only the topology-smoothed 7 CONCLUSION
+853 911
+854 features, which are commonly utilized in GNN-based clustering; In this paper, we present DGAC, an effective graph clustering 912
+855 • DGAC-GDC prohibits the graph diffusion clustering proposed method applicable to both homophilic and heterophilic graphs. 913
+856 in Section 5.2 and employs only the 𝑘-Means algorithm; We first formulate the objectives of spectral clustering and existing 914
+857 • DGAC-L𝑐𝑜𝑛𝑡 removes the hierarchical contrastive loss L𝑐𝑜𝑛𝑡 GNNs as a Dirichlet Energy minimization problem and elucidate 915
+858 as presented in Eq. (18). its connection with graph homophily degree. Building on this in- 916
+859 Table 6 presents the performance of these variants on Texas, Cor- sight, we propose a coherent framework with a unified objective 917
+860 nell, and Flickr datasets. As we can observe, removing any of these to capture the high-order connectivity in both the input graph G 918
+861 modules leads to notable performance decreases in terms of both and the affinity graph H underlying the attribute data, which is 919
+862 accuracy and NMI, demonstrating the effectiveness of these newly formulated as Dirichlet Energy minimization on G and H. Guided 920
+863 proposed modules. Among all variants, DGAC-DGDN brings the by this unified objective, we develop the dual graph diffusion net- 921
+864 most dramatic performance decrease of 4.7% on Texas, 6.66% on works and graph diffusion clustering mechanism, both of which 922
+865 Cornell, and 5.43% on Flickr in terms of accuracy, which reflects the are derived from efficient and theoretically-grounded solutions to 923
+866 importance of minimizing the DE over both G and H during the the objective. Extensive experiments conducted on 12 real-world 924
+867 generation of embeddings. Additionally, removing the proposed graphs, compared against 12 baseline methods, demonstrate the 925
+868 hierarchical contrastive loss L𝑐𝑜𝑛𝑡 decreases the clustering per- superior performance of DGAC in clustering both heterophilic and 926
+869 formance by 5.07% and 6.48% on Flicker in terms of accuracy and homophilic graphs. 927
+870 8 928
+
+--- PAGE 9 ---
+Diffusion-based Graph-agnostic Clustering Conference’17, July 2017, Washington, DC, USA
+929 REFERENCES [28] Zhenyu Hou, Xiao Liu, Yukuo Cen, Yuxiao Dong, Hongxia Yang, Chunjie Wang, 987
+930 [1] Sami Abu-El-Haija, Bryan Perozzi, Amol Kapoor, Nazanin Alipourfard, Kristina and Jie Tang. 2022. GraphMAE: Self-Supervised Masked Graph Autoencoders. 988
+Lerman, Hrayr Harutyunyan, Greg Ver Steeg, and Aram Galstyan. 2019. Mixhop: In KDD ’22. ACM, 594–604.
+931 Higher-order graph convolutional architectures via sparsified neighborhood [29] Glen Jeh and Jennifer Widom. 2003. Scaling personalized web search. In Proceed- 989
+932 mixing. In international conference on machine learning. PMLR, 21–29. ings of the 12th international conference on World Wide Web. 271–279. 990
+933 [2] Aritra Bhowmick, Mert Kosan, Zexi Huang, Ambuj K. Singh, and Sourav Medya. [30] Wei Jin, Tyler Derr, Yiqi Wang, Yao Ma, Zitao Liu, and Jiliang Tang. 2021. Node 991
+2024. DGCLUSTER: A Neural Framework for Attributed Graph Clustering via similarity preserving graph convolutional networks. In Proceedings of the 14th
+934 Modularity Maximization. In IAAI 2024. AAAI Press, 11069–11077. ACM international conference on web search and data mining. 148–156. 992
+935 [3] Filippo Maria Bianchi. 2023. Simplifying Clustering with Graph Neural Networks. [31] Wei Jin, Xiaorui Liu, Yao Ma, Charu Aggarwal, and Jiliang Tang. 2022. Feature 993
+936 In NLDL 2023. Septentrio Academic Publishing. Overcorrelation in Deep Graph Neural Networks: A New Perspective. In Pro- 994
+[4] Filippo Maria Bianchi, Daniele Grattarola, and Cesare Alippi. 2020. Spectral Clus- ceedings of the 28th ACM SIGKDD Conference on Knowledge Discovery and Data
+937 tering with Graph Neural Networks for Graph Pooling. In ICML 2020 (Proceedings Mining. 709–719. 995
+938 of Machine Learning Research, Vol. 119). PMLR, 874–883. [32] Wei Jin, Xiaorui Liu, Yao Ma, Charu C. Aggarwal, and Jiliang Tang. 2022. Feature 996
+[5] Deyu Bo, Xiao Wang, Chuan Shi, and Huawei Shen. 2021. Beyond low-frequency Overcorrelation in Deep Graph Neural Networks: A New Perspective. In SIGKDD
+939 information in graph convolutional networks. In Proceedings of the AAAI confer- 2022. ACM, 709–719. 997
+940 ence on artificial intelligence, Vol. 35. 3950–3957. [33] Diederik P. Kingma and Jimmy Ba. 2015. Adam: A Method for Stochastic Opti- 998
+941 [6] David Buterez, Ioana Bica, Ifrah Tariq, Helena Andrés-Terré, and Pietro Liò. 2022. mization. In ICLR 2015. 999
+CellVGAE: an unsupervised scRNA-seq analysis workflow with graph attention [34] Thomas N. Kipf and Max Welling. 2016. Variational Graph Auto-Encoders. CoRR
+942 networks. Bioinformatics 38, 5 (2022), 1277–1286. abs/1611.07308 (2016). 1000
+943 [7] Sudhanshu Chanpuriya and Cameron Musco. 2022. Simplified graph convolution [35] Thomas N. Kipf and Max Welling. 2017. Semi-Supervised Classification with 1001
+944 w 27 i 1 th 84 h – e 2 t 7 e 1 ro 97 p . hily. Advances in Neural Information Processing Systems 35 (2022), [36] G Ky ra le ph Kl C os o t n e v r o a l n u d tio D n a a v l id Ne F t G w l o e r i k ch s. . I 2 n 01 IC 4. L H R e 2 a 0 t 17 k . ernel based community detection. 1002
+945 [8] Jingyu Chen, Runlin Lei, and Zhewei Wei. 2024. PolyGCL: GRAPH CON- In Proceedings of the 20th ACM SIGKDD international conference on Knowledge 1003
+946 TRASTIVE LEARNING via Learnable Spectral Polynomial Filters. In ICLR 2024. discovery and data mining. 1386–1395. 1004
+[9] Jingfan Chen, Guanghui Zhu, Yifan Qi, Chunfeng Yuan, and Yihua Huang. 2022. [37] Chao Li, Zhiyuan Liu, Mengmeng Wu, Yuchi Xu, Huan Zhao, Pipei Huang,
+947 Towards Self-supervised Learning on Graphs with Heterophily. In CIKM 2022. Guoliang Kang, Qiwei Chen, Wei Li, and Dik Lun Lee. 2019. Multi-interest 1005
+948 ACM, 201–211. network with dynamic routing for recommendation at Tmall. In CIKM. 2615– 1006
+949 [10] Ming Chen, Zhewei Wei, Zengfeng Huang, Bolin Ding, and Yaliang Li. 2020. 2623. 1007
+950 S m im ac p h l i e ne an le d ar d n e i e n p g. g P r M ap L h R c , o 1 n 7 v 2 o 5– lu 1 t 7 io 35 n . al networks. In International conference on [38] W Ch e a n n d g on L g iu B , Y i. u 2 w 0 e 2 n 4. Ya D n A g G , Y : u D e e D ep in A g, d H ap o t n iv g e ta a o n L d u G , W en e e n r q a i t n iv g e L K in - , F Z re im e C in o g m W m u u , n a i n t d y 1008
+951 [11] Yi Cheng and Xiuli Ma. 2022. scGAC: a graph attentional architecture for Detection on Attributed Graphs. In Proceedings of the ACM SIGKDD international 1009
+952 [12] c E l l u i s C t h er ie in n g , J s ia in n g h l a e o -c P e e ll n R g N , P A a - n se L q i, d a a n t d a. O B lg io ic in a f M or i m le a n t k ic o s v 3 ic 8 . , 2 8 02 (2 1 0 . 2 A 2 d ), a 2 p 1 ti 8 v 7 e – U 21 n 9 iv 3 e . rsal [39] c F o a n n f z e h re e n n c L e i o u n , Z K h n a o o w L le i d , g B e ao d k is u c n ov W er a y n a g n , d Ji d a a W ta u m , J i i n a i n ng Y . ang, Jiaming Huang, Yiqing 1010
+953 Generalized PageRank Graph Neural Network. In ICLR 2021. OpenReview.net. Zhang, Weiqiang Wang, Shan Xue, Surya Nepal, et al. 2022. eRiskCom: an e- 1011
+954 [13] Fan RK Chung. 1997. Spectral graph theory. Vol. 92. American Mathematical commerce risky community detection platform. VLDBJ 31, 5 (2022), 1085–1101. 1012
+Soc. [40] Hua Liu, Haoyu Han, Wei Jin, Xiaorui Liu, and Hui Liu. 2023. Enhancing Graph
+955 [14] Ganqu Cui, Jie Zhou, Cheng Yang, and Zhiyuan Liu. 2020. Adaptive Graph Representations Learning with Decorrelated Propagation. In Proceedings of the 1013
+956 Encoder for Attributed Graph Embedding. In KDD ’20. ACM, 976–985. 29th ACM SIGKDD Conference on Knowledge Discovery and Data Mining. 1466– 1014
+957 [15] Xiaowen Dong, Dorina Thanou, Pascal Frossard, and Pierre Vandergheynst. 1476. 1015
+958 2 T 0 ra 1 n 6. sa L c e ti a o r n n s in o g n L S a ig p n la a c l i P a r n oc m es a s t i r n i g x i 6 n 4, s 2 m 3 o ( o 2 t 0 h 16 g ) r , a 6 p 1 h 60 s – ig 6 n 1 a 7 l 3 r . epresentations. IEEE [41] H tio u n ik w an it g h L o iu rt , h W og ei o ji n e a W lity u, c a o n n d st A ra n i t n h t o s n : y Ex M p a li n c - it C l h o o ja S s o ie . w 20 ic 1 z 6. e Q xp u o a n d e ra n t t ic an op d ti l m in i e z a a r - 1016
+959 [16] Lun Du, Xiaozhou Shi, Qiang Fu, Xiaojun Ma, Hengyu Liu, Shi Han, and Dongmei convergence of line-search methods. In International Conference on Machine 1017
+960 Z bo h t a h n h g o . m 20 o 2 p 2 h . il G y b a k n - d g h n e n t : e G ro a p t h e i d ly b . i I - n ke P r r n oc e e l e g d r in a g p s h o n f e th u e ra A l C n M etw W o eb rk C s o f n o f r er m en o c d e e 2 l 0 in 2 g 2. [42] L Y e ix a i r n ni L n i g u . , P Z M h L ao R, L 1 i 1 , 5 S 8 h – ir 1 u 1 i 6 P 7. an, Chen Gong, Chuan Zhou, and George Karypis. 1018
+961 1550–1558. 2022. Anomaly Detection on Attributed Networks via Contrastive Self- 1019
+962 [17] Vijay Prakash Dwivedi, Chaitanya K Joshi, Anh Tuan Luu, Thomas Laurent, Supervised Learning. IEEE Trans. Neural Networks Learn. Syst. 33, 6 (2022), 1020
+Yoshua Bengio, and Xavier Bresson. 2023. Benchmarking graph neural networks. 2378–2392.
+963 Journal of Machine Learning Research 24, 43 (2023), 1–48. [43] Yue Liu, Jun Xia, Sihang Zhou, Siwei Wang, Xifeng Guo, Xihong Yang, Ke Liang, 1021
+964 [18] Amani HB Eissa, Mohamed E El-Sharkawi, and Hoda MO Mokhtar. 2018. Towards Wenxuan Tu, Stan Z. Li, and Xinwang Liu. 2022. A Survey of Deep Graph 1022
+965 recommendation using interest-based communities in attributed social networks. Clustering: Taxonomy, Challenge, and Application. CoRR abs/2211.12875 (2022). 1023
+966 [19] I K n y C F o a m n p . a 1 n 94 io 9 n . P O ro n ce a ed th in e g o s re o m f th o e f T W h e e y W l c eb on C c o e n r f n e i r n e g nc e e ig 20 e 1 n 8 v . a 1 lu 23 e 5 s – o 1 f 2 l 4 i 2 n . ear trans- [44] Y ua u n e T L u iu , , a X nd ih L o i n a g ng Ya L n i. g 2 , 0 S 2 i 3 h . a S n i g m Z pl h e o c u o , n X tr in as w ti a v n e g g L ra iu p , h S c iw lu e s i te W ri a n n g g . , IE K E e E L T i r a a n n g s , a W ct e io n n x s - 1024
+967 formations I. Proceedings of the National Academy of Sciences 35, 11 (1949), on Neural Networks and Learning Systems (2023). 1025
+968 [20] 6 Jo 5 h 2 a – n 65 n 5 e . s Gasteiger, Aleksandar Bojchevski, and Stephan Günnemann. 2018. [45] Y u u an e L T i u u , , L X i i a h n o g ng Li Y , a Ji n n g g , c S a i n ha D n u g a Z n h , o a u n , d X C in a w nc a a n n g C Li h u e , n Z . h 2 e 0 n 23 W . a H n a g r , d K S e a L m ia p n l g e , A W w e a n r x e - 1026
+969 Predict then Propagate: Graph Neural Networks meet Personalized PageRank. Network for Contrastive Deep Graph Clustering. In AAAI 2023. AAAI Press, 1027
+970 In International Conference on Learning Representations. 8914–8922. 1028
+[21] Johannes Gasteiger, Stefan Weißenberger, and Stephan Günnemann. 2019. Diffu- [46] Yixin Liu, Yu Zheng, Daokun Zhang, Hongxu Chen, Hao Peng, and Shirui Pan.
+971 sion improves graph learning. Advances in neural information processing systems 2022. Towards Unsupervised Deep Graph Structure Learning. In WWW ’22. 1029
+972 32 (2019). ACM, 1392–1403. 1030
+973 [22] Ming Gu, Gaoming Yang, Sheng Zhou, Ning Ma, Jiawei Chen, Qiaoyu Tan, [47] Sitao Luan, Chenqing Hua, Qincheng Lu, Liheng Ma, Lirong Wu, Xinyu Wang, 1031
+Meihan Liu, and Jiajun Bu. 2023. Homophily-enhanced Structure Learning for Minkai Xu, Xiao-Wen Chang, Doina Precup, Rex Ying, et al. 2024. The het-
+974 Graph Clustering. In CIKM 2023. ACM, 577–586. erophilic graph learning handbook: Benchmarks, models, theoretical analysis, 1032
+975 [23] Lars Hagen and Andrew B Kahng. 1992. New spectral methods for ratio cut par- applications and challenges. arXiv preprint arXiv:2407.09618 (2024). 1033
+976 t c i i t r i c o u n i i t n s g an a d nd sy c s l t u e s m te s ri 1 n 1 g , . 9 IE (1 E 9 E 92 tr ) a , n 1 s 0 a 7 c 4 t – io 1 n 0 s 8 o 5 n . computer-aided design of integrated [48] S Z i h ta a o ng L , u X a i n a , o C -W he e n n q C in h g an H g u , a a , n Q d i D nc o h in e a ng Pr L e u c , u J p i . a 2 q 0 i 2 Z 2 h . u R , e M vi i s n it g i d n e g Z h h et a e o r , o S p h h u il y y u f a o n r 1034
+977 [24] Dongxiao He, Jitao Zhao, Rui Guo, Zhiyong Feng, Di Jin, Yuxiao Huang, Zhen graph neural networks. Advances in neural information processing systems 35 1035
+978 Wang, and Weixiong Zhang. 2023. Contrastive Learning Meets Homophily: Two (2022), 1362–1375. 1036
+979 B Vo ir l d . 2 s 0 w 2) i . th PM O L n R e , S 1 t 2 o 7 n 7 e 5 . – In 12 IC 78 M 9. L 2023 (Proceedings of Machine Learning Research, [49] S 20 it 2 a 0 o . L C u o a m n, p M let in e g th de e Z m h is a s o i , n C g h h e a n lf q : i A ng ug H m u e a n , t X in ia g o a -W gg e r n eg C a h ti a o n n g fi , a lt n e d rin D g oi w n i a th Pr d e i c v u e p r- . 1037
+980 [25] Mingguo He, Zhewei Wei, Hongteng Xu, et al. 2021. Bernnet: Learning arbi- sification for graph convolutional networks. arXiv preprint arXiv:2008.08844 1038
+981 trary graph spectral filters via bernstein approximation. Advances in Neural (2020). 1039
+982 [26] I X n i f a o o rm fe a i t H io e n , P D r e o n ce g ss C in a g i, S a y n st d em Pa s r 3 t 4 ha (2 N 02 iy 1) o , g 1 i 4 . 2 2 3 0 9 0 – 5 1 . 42 L 5 a 1 p . lacian score for feature [50] X an u d ex S i h on an g L X u u o e , . Ji 2 a 02 W 2 u . , C A o m m in ga B : e C he o s m ht m i, u J n ia i n ty Y -a a w ng a , r X e i a a t n t k ri u b n ut Z e h d a g n r g a , p Y h ua a n no W m a a n l g y , 1040
+983 selection. Advances in neural information processing systems 18 (2005). detection. In Proceedings of the Fifteenth ACM International Conference on Web 1041
+984 [27] R si o ty ge p r r A ess H . orn and Charles R Johnson. 2012. Matrix analysis. Cambridge univer- [51] S Y e a a o rc M h a a , n X d ia D o a r t u a i M Li i u n , in T g o . n 6 g 57 Z – h 6 a 6 o 5 , . Yozen Liu, Jiliang Tang, and Neil Shah. 2021. 1042
+985 A unified view on graph neural networks as graph signal denoising. In Pro- 1043
+986 9 ceedings of the 30th ACM International Conference on Information & Knowledge 1044
+
+--- PAGE 10 ---
+Conference’17, July 2017, Washington, DC, USA Anon. Submission Id: 1776
+1045 Management. 1202–1211. [71] Chun Wang, Shirui Pan, Guodong Long, Xingquan Zhu, and Jing Jiang. 2017. 1103
+1046 [52] Miller McPherson, Lynn Smith-Lovin, and James M Cook. 2001. Birds of a feather: Mgae: Marginalized graph autoencoder for graph clustering. In Proceedings of the 1104
+Homophily in social networks. Annual review of sociology 27, 1 (2001), 415–444. 2017 ACM on Conference on Information and Knowledge Management. 889–898.
+1047 [53] Nairouz Mrabah, Mohamed Bouguessa, Mohamed Fawzi Touati, and Riadh Ksan- [72] Felix Wu, Amauri H. Souza Jr., Tianyi Zhang, Christopher Fifty, Tao Yu, and 1105
+1048 tini. 2023. Rethinking Graph Auto-Encoder Models for Attributed Graph Clus- Kilian Q. Weinberger. 2019. Simplifying Graph Convolutional Networks. In ICML 1106
+1049 tering. IEEE Trans. Knowl. Data Eng. 35, 9 (2023), 9037–9053. 2019 (Proceedings of Machine Learning Research, Vol. 97). PMLR, 6861–6871. 1107
+[54] Hoang Nt and Takanori Maehara. 2019. Revisiting graph neural networks: All [73] Zhirong Wu, Yuanjun Xiong, Stella X Yu, and Dahua Lin. 2018. Unsupervised
+1050 we have is low-pass filters. arXiv preprint arXiv:1905.09550 (2019). feature learning via non-parametric instance discrimination. In Proceedings of 1108
+1051 [55] Aaron van den Oord, Yazhe Li, and Oriol Vinyals. 2018. Representation learning the IEEE conference on computer vision and pattern recognition. 3733–3742. 1109
+with contrastive predictive coding. arXiv preprint arXiv:1807.03748 (2018). [74] Xuanting Xie, Erlin Pan, Zhao Kang, Wenyu Chen, and Bingheng Li. 2024. Prov-
+1052 [56] Erlin Pan and Zhao Kang. 2023. Beyond Homophily: Reconstructing Structure able Filter for Real-world Graph Clustering. arXiv preprint arXiv:2403.03666 1110
+1053 for Graph-agnostic Clustering. In ICML 2023, Vol. 202. PMLR, 26868–26877. (2024). 1111
+[57] Adam Paszke, Sam Gross, Francisco Massa, Adam Lerer, James Bradbury, Gregory [75] Keyulu Xu, Chengtao Li, Yonglong Tian, Tomohiro Sonobe, Ken-ichi
+1054 1112
+Chanan, Trevor Killeen, Zeming Lin, Natalia Gimelshein, Luca Antiga, Alban Kawarabayashi, and Stefanie Jegelka. 2018. Representation learning on graphs
+1055 Desmaison, Andreas Köpf, Edward Z. Yang, Zachary DeVito, Martin Raison, with jumping knowledge networks. In International conference on machine learn- 1113
+1056 Alykhan Tejani, Sasank Chilamkurthy, Benoit Steiner, Lu Fang, Junjie Bai, and ing. PMLR, 5453–5462. 1114
+Soumith Chintala. 2019. PyTorch: An Imperative Style, High-Performance Deep [76] Lei Xu, Lei Chen, Rong Wang, Feiping Nie, and Xuelong Li. 2024. Joint Feature
+1057 1115
+Learning Library. In NeurIPS 2019. 8024–8035. and Differentiable 𝑘-NN Graph Learning using Dirichlet Energy. Advances in
+1058 [58] Hongbin Pei, Bingzhe Wei, Kevin Chen-Chuan Chang, Yu Lei, and Bo Yang. Neural Information Processing Systems 36 (2024). 1116
+1059 2020. Geom-GCN: Geometric Graph Convolutional Networks. In ICLR 2020. [77] Liang Yang, Chuan Wang, Junhua Gu, Xiaochun Cao, and Bingxin Niu. 2021. Why 1117
+OpenReview.net. do attributes propagate in graph convolutional neural networks?. In Proceedings
+1060 [59] Usha Nandini Raghavan, Réka Albert, and Soundar Kumara. 2007. Near linear of the AAAI Conference on Artificial Intelligence, Vol. 35. 4590–4598. 1118
+1061 time algorithm to detect community structures in large-scale networks. Physical [78] Renchi Yang and Jieming Shi. 2024. Efficient High-Quality Clustering for Large 1119
+1062 Review E—Statistical, Nonlinear, and Soft Matter Physics 76, 3 (2007), 036106. Bipartite Graphs. Proceedings of the ACM on Management of Data 2, 1 (2024), 1120
+[60] Leonardo Filipe Rodrigues Ribeiro, Pedro H. P. Saverese, and Daniel R. Figueiredo. 1–27.
+1063 2017. struc2vec: Learning Node Representations from Structural Identity. In [79] Renchi Yang, Jieming Shi, Xiaokui Xiao, Yin Yang, and Sourav S Bhowmick. 1121
+1064 Proceedings of the 23rd ACM SIGKDD. ACM, 385–394. 2020. Homogeneous network embedding for massive graphs via reweighted 1122
+[61] Benedek Rozemberczki, Carl Allen, and Rik Sarkar. 2021. Multi-Scale attributed personalized PageRank. Proceedings of the VLDB Endowment 13, 5 (2020), 670–
+1065 node embedding. J. Complex Networks 9, 2 (2021). 683. 1123
+1066 [62] Shi. 2003. Multiclass spectral clustering. In Proceedings ninth IEEE international [80] Zhitao Ying, Jiaxuan You, Christopher Morris, Xiang Ren, Will Hamilton, and Jure 1124
+1067 conference on computer vision. IEEE, 313–319. Leskovec. 2018. Hierarchical graph representation learning with differentiable 1125
+[63] Jianbo Shi and Jitendra Malik. 2000. Normalized cuts and image segmentation. pooling. Advances in neural information processing systems 31 (2018).
+1068 IEEE Transactions on pattern analysis and machine intelligence 22, 8 (2000), 888– [81] Hengrui Zhang, Qitian Wu, Junchi Yan, David Wipf, and Philip S. Yu. 2021. From 1126
+1069 905. Canonical Correlation Analysis to Self-supervised Graph Neural Networks. In 1127
+1070 [64] Gilbert Strang. 2022. Introduction to linear algebra. SIAM. NeurIPS 2021. 76–89. 1128
+[65] Jie Tang, Jing Zhang, Limin Yao, Juanzi Li, Li Zhang, and Zhong Su. 2008. Arnet- [82] Ziwei Zhang, Peng Cui, Xiao Wang, Jian Pei, Xuanrong Yao, and Wenwu Zhu.
+1071 miner: extraction and mining of academic social networks. In Proceedings of the 2018. Arbitrary-order proximity preserved network embedding. In Proceedings 1129
+1072 ACM SIGKDD international conference on Knowledge discovery and data mining. of the 24th ACM SIGKDD international conference on knowledge discovery & data 1130
+990–998. mining. 2778–2786.
+1073 [66] Lei Tang and Huan Liu. 2011. Leveraging social media networks for classification. [83] Xin Zheng, Yi Wang, Yixin Liu, Ming Li, Miao Zhang, Di Jin, Philip S Yu, and 1131
+1074 Data mining and knowledge discovery 23 (2011), 447–478. Shirui Pan. 2022. Graph neural networks for graphs with heterophily: A survey. 1132
+1075 [67] Anton Tsitsulin, John Palowitch, Bryan Perozzi, and Emmanuel Müller. 2023. arXiv preprint arXiv:2202.07082 (2022). 1133
+Graph Clustering with Graph Neural Networks. J. Mach. Learn. Res. 24 (2023), [84] Zhiqiang Zhong, Guadalupe Gonzalez, Daniele Grattarola, and Jun Pang. 2022.
+1076 127:1–127:21. Unsupervised Network Embedding Beyond Homophily. Trans. Mach. Learn. Res. 1134
+1077 [68] Laurens Van der Maaten and Geoffrey Hinton. 2008. Visualizing data using 2022 (2022). 1135
+1078 t-SNE. Journal of machine learning research 9, 11 (2008). [85] Jiong Zhu, Yujun Yan, Lingxiao Zhao, Mark Heimann, Leman Akoglu, and Danai 1136
+[69] Petar Velickovic, William Fedus, William L. Hamilton, Pietro Liò, Yoshua Bengio, Koutra. 2020. Beyond homophily in graph neural networks: Current limitations
+1079 and R. Devon Hjelm. 2019. Deep Graph Infomax. In ICLR 2019. and effective designs. Advances in neural information processing systems 33 (2020), 1137
+1080 [70] Ulrike Von Luxburg. 2007. A tutorial on spectral clustering. Statistics and 7793–7804. 1138
+1081 computing 17 (2007), 395–416. [86] M un e i i f q y i in Z g hu g , ra X p ia h o n W eu a r n a g l , n C e h tw ua o n rk S s h w i, i H th ou an ye o J p i, ti a m nd iz P at e i n o g n C fr u a i m . 2 e 0 w 21 o . rk In . t I e n rp P r r e o t c i e n e g di a n n g d s 1139
+1082 of the Web Conference 2021. 1215–1226. 1140
+1083 1141
+1084 1142
+1085 1143
+1086 1144
+1087 1145
+1088 1146
+1089 1147
+1090 1148
+1091 1149
+1092 1150
+1093 1151
+1094 1152
+1095 1153
+1096 1154
+1097 1155
+1098 1156
+1099 1157
+1100 1158
+1101 1159
+1102 10 1160
+
+--- PAGE 11 ---
+Diffusion-based Graph-agnostic Clustering Conference’17, July 2017, Washington, DC, USA
+1161 A PROOFS since (f𝑢 − f𝑣)2 ≤ 2(f𝑢 2 − f𝑣 2). Thus, the range of eigenvalues of L𝑆 1219
+1162 is [0, 2] and the lemma is proved. □ 1220
+A.1 Proof of Lemma 2
+1163 1221
+Proof. Recall that the definition of homophily ratio over graph
+1164 A.4 Proof of Lemma 5 1222
+G is the fraction of edges whose endpoints are in the same cluster.
+1165 Proof. We prove this result in the reverse direction: 1223
+Thus,
+1166 1224
+𝐾
+1 1 1 1 6 6 7 8 𝐻𝑅 G = (cid:205) (𝑣𝑖,𝑣𝑗 ) ∈ E (cid:205) |E 𝑘 𝐾 = | 1 Y𝑖,𝑘 · Y𝑗,𝑘 C m ⊤C in =I 𝑘 ∑︁ =1 𝑣𝑖 ∑︁ ∈ C𝑘 ∥H𝑖 − H𝑘 ∥ 2 2 ⇐⇒ C m ⊤C in =I trace(C⊤(I − 𝚫)C). 1 1 2 2 2 2 5 6
+1 1 1 1 6 7 9 0 (cid:205) (𝑣𝑖,𝑣𝑗 ) ∈ E (cid:205) 𝑘 𝐾 =1 Y 𝑖 2 ,𝑘 − Y 𝑖 2 ,𝑘 + Y 2 𝑗,𝑘 − Y 2 𝑗,𝑘 − 2Y𝑖,𝑘 · Y𝑗,𝑘 Minimizing the embedding distance between a node and its cluster 1 1 2 2 2 2 7 8
+= − centroid is equivalent to minimizing the pairwise squared devia-
+1171 2|E| 1229
+tions of nodes in the cluster:
+1 1 1 1 7 7 2 3 = (cid:205) (𝑣𝑖,𝑣𝑗 ) ∈ E (cid:205) 2| 𝑘 𝐾 E = | 1 Y 𝑖 2 ,𝑘 + Y 2 𝑗,𝑘 min ∑︁ 𝐾 1 ∑︁ ∥H𝑖 − H𝑗 ∥ 2 2 1 1 2 2 3 3 0 1
+1 1 1 1 1 1 7 7 7 4 5 6 − (cid:205) (𝑣𝑖,𝑣𝑗 ) ∈ E (cid:205) 𝑘 𝐾 =1 Y 𝑖 2 2 ,𝑘 |E + | Y 2 𝑗,𝑘 − 2Y𝑖,𝑘 · Y𝑗,𝑘 C⊤C=I 𝑘 = =1 2 1 |C ∑︁ 𝑘 | ( 𝑣 C 𝑖,𝑣 C 𝑗 ⊤ ∈ C )𝑖 𝑘 𝑗 · ∥H𝑖 − H𝑗 ∥ 2 2 1 1 1 2 2 2 3 3 3 2 3 4
+1 1 1 1 7 7 7 8 = 1 − (cid:205) (𝑣𝑖,𝑣𝑗 ) ∈ E (cid:205) 𝑘 𝐾 =1 (Y𝑖,𝑘 − Y𝑗,𝑘 )2 = tra 𝑣 c 𝑖, e 𝑣 ( 𝑗 H⊤(I − CC⊤)H) 1 1 2 2 3 3 5 6
+1179
+2 2|E|
+1237
+1
+1
+1
+1
+8
+8
+0
+1 =
+1
+2 −
+(cid:205) 𝑘 𝐾 =1 (cid:205) 𝑣𝑖,𝑣𝑗 ∈V
+2
+A
+|
+𝑖
+E
+,𝑗
+|
+· (Y𝑖,𝑘 − Y𝑗,𝑘 )2
+The first equal sign
+=
+is
+tr
+b
+a
+a
+c
+s
+e
+e
+(
+d
+H
+o
+⊤
+n
+H
+t
+)
+h
+−
+e d
+tr
+e
+a
+fi
+c
+n
+e
+i
+(
+ti
+H
+o
+⊤
+n
+C
+o
+C
+f C
+⊤H
+gi
+)
+v
+.
+en in Eq.
+(2
+(2
+2
+)
+)
+.
+1
+1
+2
+2
+3
+3
+8
+9
+1 1
+1
+1 1
+1
+8 8
+8
+2 3
+4
+= 1
+2
+− (cid:205) 𝑘 𝐾 =1 2 ·
+2
+D
+|E
+(
+|
+Y·,𝑘 , A) = 1
+2
+−
+|E
+1
+|
+∑︁ 𝐾 D(Y·,𝑘 , A), S 0
+in
+. p S e
+th
+i c n i
+e
+fi c
+o
+c e a
+p
+t l
+t
+h l
+i
+y
+m
+e , v (
+iz
+C a
+a
+r C
+t
+i
+i
+a ⊤
+o
+b )
+n
+l 𝑖 e 𝑗
+p
+t
+r
+= o
+oc
+1 b
+e
+/ e
+s
+|C
+s
+o
+,
+𝑘 p
+m
+t | i i m
+i
+f
+n
+𝑣 i
+i
+𝑖 z
+m
+, e 𝑣
+i
+d
+z
+𝑗
+i
+i
+n
+∈ s
+g
+C C
+E
+𝑘 a
+q
+a n
+.
+n d
+(
+d
+2
+t
+2
+o r
+)
+a th
+i
+c
+s
+e e
+e
+r ( w H
+qu
+i ⊤ s
+iv
+e H ,
+a
+) (
+le
+C i
+n
+s C
+t
+fi ⊤
+t
+x
+o
+) e 𝑖 d 𝑗 = 1 1
+1
+2 2
+2
+4 4
+4
+0 1
+2
+𝑘=1
+1185 which seals the proof. □ ⇐⇒ min − trace(H⊤CC⊤H) = − trace(C⊤HH⊤C) 1243
+1186 C⊤C=I 1244
+1187 A.2 Proof of Lemma 3 ⇐⇒ min trace(C⊤(I − HH⊤)C). 1245
+1188 C⊤C=I 1246
+1189 Proof. By the definitions of d and S in Eq. (6), d𝑖 = (cid:205) 𝑣𝑗 ∈V S𝑖,𝑗 . This finishes the proof. □ 1247
+1190 Since S ˜ = diag((cid:205) 𝑗 S:,𝑗 )−1/2 · S · diag((cid:205) 𝑗 S:,𝑗 )−1/2, it is easy to verify 1248
+1191 S ˜ = XX ⊤, which is a symmetric matrix. According to [64], the top-𝑑 A.5 Proof of Theorem 1 1249
+1192 left singular vectors of X are exactly the 𝑑-largest eigenvectors of To prove Theorem 1, we first give the following propositions. 1250
+1193 S ˜. The lemma is proved. □ Let 𝑋 and 𝑆 denote the random variable of the input data and 1251
+1194 the data augmented under the view of the optimization, respec- 1252
+1195 A.3 Proof of Lemma 4 tively. Assume the input data comes from a distribution 𝑥 ∼ 𝑝 (𝑥). 1253
+1 1 1 1 9 9 6 7 𝑆˜. I P n r t o h o is f. pr L o e o t f, L w 𝑆 e = w I i − ll S fi ˜ r b s e t p th r e ov L e a t p h la e c d ia o n m m in a a t n r t ix ei a g s e s n o v ci a a lu te e d o w f L it 𝑆 h , C th o e n a d u it g io m n e e n d ta o t n io t n he di g s i t v r e ib n u i t n io p n ut , i d .e a . t , a 𝑠 , t ∼ he 𝑝 𝑎 a 𝑢 u 𝑔 g ( m 𝑠| e 𝑥 n ). te T d h v e i n e , w Z f ( o 𝑡 ) llo a w nd s 1 1 2 2 5 5 4 5
+1198 denoted as 𝜆(L𝑆 ), falls in the range [0, 2], which directly leads to Z(𝑎) is derived based on augmented view 𝑠𝑡, 𝑠𝑎, respectively. Let 1256
+1199 that the eigenvalue of S ˜ lie in [−1, 1] and derives the results in 𝐻 (·) be the entropy in the information theory. Let L 𝑐 ′ 𝑜𝑛𝑡 be the 1257
+1200 Lemma 4. three-level hierarchical contrastive loss in Eq. (18), i.e., L 𝑐 ′ 𝑜𝑛𝑡 = 1258
+1201 Based on the min-max Theorem [27], the following Rayleigh L𝑛𝑜𝑑 + L𝑛𝑒𝑖 (Z(𝑡 ), Z(𝑎) ) + L𝑛𝑒𝑖 (Z(𝑎), Z(𝑡 ) ) + L𝑐𝑙𝑢 (Z(𝑡 ), Z(𝑎) ) + 1259
+1202 quotient gives the minimal and maximal eigenvalue of L𝑆 : L𝑐𝑙𝑢 (Z(𝑎), Z(𝑡 ) ). 1260
+1203 1261
+1204 g⊤L𝑆 g f⊤(diag((cid:205) 𝑗 S:,𝑗 ) − S)f Proposition 1. In expectation, minimizing the L 𝑐 ′ 𝑜𝑛𝑡 is equiva- 1262
+1205 g⊤g = f⊤diag((cid:205) 𝑗 S:,𝑗 )f lent to minimizing an upper bound of the entropy of Z 𝑆 on input 𝑋 , 1263
+1
+1
+2
+2
+0
+0
+6
+7 =
+(cid:205) 𝑢≠𝑣 S𝑖,𝑗 (f𝑢 − f𝑣)2
+, (21)
+a
+n
+n
+ei
+d
+gh
+th
+b
+e
+or
+g
+s
+a
+, a
+p
+s
+is
+w
+d
+el
+e
+l
+te
+a
+r
+s
+m
+th
+in
+e
+e
+d
+d
+is
+b
+ta
+y
+n
+t
+c
+h
+e
+e
+b
+d
+e
+i
+t
+s
+w
+ta
+e
+n
+en
+ce
+n
+b
+o
+e
+d
+t
+e
+w
+s
+e
+a
+e
+n
+n
+d
+n
+t
+o
+h
+d
+ei
+e
+r
+s
+c
+a
+lu
+n
+s
+d
+te
+t
+r
+h
+i
+e
+n
+i
+g
+r 1
+1
+2
+2
+6
+6
+4
+5
+1208 2 (cid:205) 𝑢 f𝑢 2𝑑 (𝑢) centroids: 1266
+1209 where f = diag((cid:205) 𝑗 S:,𝑗 )1/2 g. Then the minimal eigenvalue of L𝑆 is: min L𝑐 ′ 𝑜𝑛𝑡 ∝ min 𝐻 (Z 𝑆 |𝑋 ) + E𝑖∼𝑝 (𝑥 ) E𝑠∼𝑝 (𝑠 |𝑖) Δ, 1267
+1 1 1 1 1 1 1 2 2 2 2 2 2 2 1 1 1 1 1 1 1 0 1 2 3 4 5 6 And the max 𝜆 𝜆 i ( m ( L L a 𝑆 𝑆 l ) ) 𝑚 e 𝑚 i 𝑎 g 𝑖 𝑥 𝑛 en = = va m m l f u f a in e x o (cid:205) (cid:205) f 𝑢 𝑢 L ≠ ≠ 2 𝑆 2 𝑣 𝑣 (cid:205) (cid:205) c S S a 𝑢 𝑖 𝑢 𝑖 , n , 𝑗 𝑗 f f ( 𝑢 ( 𝑢 2 b 2 f f 𝑑 𝑢 e 𝑑 𝑢 ( ( o − 𝑢 − 𝑢 b ) ) f t f 𝑣 a 𝑣 ) i ) n 2 2 e = d ≤ b 0 2 y . , : all P fe r a o t o u Δ f re o = f d ( i P Z m r 𝑖 𝑆 o en p − s o E i s o i 𝑗 n t ∼ s i 𝑝 o , N n i. ( e · 1 . | , 𝑖 . ) L Z L 𝑐 𝑆 ′ 𝑗 o 𝑜 ) s 𝑛 2 s 𝑡 + L = ( 𝑐 ′ Z 𝑜 (cid:205) 𝑛 𝑖 𝑆 𝑡 𝑑 𝑘 − = is 1 E t L h 𝑗∼ 𝑐 e ( 𝑝 𝑜 𝑘 𝐶 s 𝑛 ) u 𝑡 ( , m ·| w 𝑖 m ) Z h a e 𝑆 𝑗 t r ) i e o 2 n . 𝑑 a i c s r t o h s e s 1 1 1 1 1 1 1 2 2 2 2 2 2 2 6 6 7 7 7 7 7 8 9 0 1 2 3 4
+1217 1275
+1218 11 1276
+
+--- PAGE 12 ---
+Conference’17, July 2017, Washington, DC, USA Anon. Submission Id: 1776
+1277 Table 7: Hyper-parameter setting on each dataset. For L (𝑘) (Z(𝑡 ), Z(𝑎) ), we can derive a similar results: 1335
+𝑐𝑙𝑢
+1 1 2 2 7 7 8 9 D Te a x t a a s set 𝐿 5 0. 𝛼 2 𝐿 C 1 𝛾 1 0. 𝑤 00 𝑑 0 𝑒 1 𝑐 𝑤 0 𝑐 .0 𝑜 0 𝑛 6 𝑡 0. 𝛽 5 L 𝑐 ( 𝑙 𝑘 𝑢 ) (Z(𝑡 ), Z(𝑎) ) (cid:27) E𝑖∼𝑝 (𝑥 ) E𝑠∼𝑝𝑎𝑢𝑔 (·|𝑖) (Z 𝑠 𝑖𝑘 − E𝑗∼𝑝 C (·|𝑖) Z 𝑠 𝑗𝑘 ) 2, 1 1 3 3 3 3 6 7
+(25)
+1280 Wisconsin 5 0.2 6 0.2 0.001 0.006 0.3 1338
+1281 Cornell 4 0.2 2 0.2 0.001 0.006 0.5 where 𝑝 (·|𝑖) denotes the distribution of nodes in the same cluster 1339
+Squirrel 1 0.2 1 0.1 0.0001 0.0001 0.9 C
+1282 Chameleon 1 0.2 1 0.2 0.0001 0.0001 0.8 as node 𝑣 𝑖 . Finally, by putting results in (23), (24) and (25) together, 1340
+1283 Flickr 1 0.8 1 0.1 0.0001 0.0001 0.1 we can obtain the following result for 𝑙 𝑘 : 1341
+1 1 2 2 8 8 4 5 C C o it r e a seer 8 5 0.8 1 5 8 0.8 1 0 0 . . 0 0 0 0 1 1 0 0 . . 0 0 0 0 0 0 0 0 1 1 0 0. .5 9 L 𝑐 ( 𝑜 𝑘 𝑛 ) 𝑡 (cid:27) E𝑖∼𝑝 (𝑥 ) (V𝑠∼𝑝𝑎𝑢𝑔 (·|𝑖) Z 𝑠 𝑖𝑘 ) + E𝑖∼𝑝 (𝑥 ) E𝑠∼𝑝𝑎𝑢𝑔 (·|𝑖) Δ 𝑘 , 1 1 3 3 4 4 2 3
+1286 P B u lo b g m C e a d talog 1 3 0 0 . . 8 8 1 3 0 0 . .1 8 0.0001 0 0 0 . . 0 0 0 0 0 0 1 1 0 0. . 1 5 Δ 𝑘 = (Z 𝑠 𝑖𝑘 − E𝑗∼𝑝 N (·|𝑖) Z 𝑠 𝑗𝑘 ) 2 + (Z 𝑠 𝑖𝑘 − E𝑗∼𝑝 C (·|𝑖) Z 𝑠 𝑗𝑘 ) 2. 1344
+1 1 2 2 8 8 7 8 B U A A T T 3 3 1 1 3 3 1 1 0 0 0 0 .0 .0 0 0 0 1 1 1 1 We follow the assumption in [81] that both the distribution of Z 𝑆 1 1 3 3 4 4 5 6
+1289 and the conditional distribution of Z 𝑆 |𝑋 obey the Gaussian distribu- 1347
+1290 tion. This assumption connects the variance of Z 𝑆 and its entropy. 1348
+total number of feature dimensions. For the sake of simplicity, we Specifically, for 𝑘-th feature dimension, we have the following re-
+1291 1349
+1292
+first focus on a single feature dimension 𝑘 in the following analysis: sult: 𝐻 (Z 𝑆
+·,𝑘
+|𝑋 ) =
+2
+1 log 2𝜋𝑒𝜎
+𝑘
+𝑠 2. This means that when we minimize
+1350
+1293 L 𝑛 (𝑘 𝑜𝑑 ) = ∑︁ (Z 𝑖 ( 𝑘 𝑡 ) − Z 𝑖 ( 𝑘 𝑎) ) 2, loss L 𝑐 ( 𝑜 𝑘 𝑛 ) 𝑡 , the upper bound of the variance of representation at 𝑘- 1351
+1294 𝑣𝑖 ∈V th dimension is minimized and hence its entropy is also minimized. 1352
+1 1 2 2 9 9 5 6 L 𝑛 (𝑘 𝑒𝑖 ) (Z(𝑡 ), Z(𝑎) ) = ∑︁ (Z 𝑖 ( 𝑘 𝑡 ) − 𝑑 ( 1 𝑣 𝑖 ) ∑︁ Z ( 𝑗𝑘 𝑎) ) 2, I p n ro c v o e m d b . ination with the decorrelation term L𝑑𝑒𝑐 , Proposition 1 i □ s 1 1 3 3 5 5 3 4
+1297 𝑣𝑖 ∈V 𝑣𝑗 ∈N(𝑣𝑖 ) 1355
+1298 𝐾 Proposition 2 ([81]). For the decorrelation term, we have 1356
+1
+1
+2
+3
+9
+0
+9
+0
+L 𝑐 ( 𝑙 𝑘 𝑢 ) (Z(𝑡 ), Z(𝑎) ) = ∑︁
+𝑗=1 𝑢𝑖
+∑︁
+∈𝐶˜ 𝑗
+(Z 𝑖 ( 𝑘 𝑡 ) − Z ( 𝑗𝑘 𝑎) ) 2. min L𝑑𝑒𝑐 (cid:27) max 𝐻 (Z 𝑆 ). 1
+1
+3
+3
+5
+5
+7
+8
+1 1 3 3 0 0 1 2 For the node-level loss L 𝑛 (𝑘 𝑜𝑑 ) , according to [81], we have the for P m r a o ti o o f n o , w f T e h ha e v o e re M m I( 1 Z . 𝑆, A 𝑋 c ) co = rd 𝐻 in (Z g 𝑆 to ) − th 𝐻 e ( d Z e 𝑆 fi | n 𝑋 it ) i . o C n o o m f b m in u i t n u g al th in e - 1 1 3 3 5 6 9 0
+following result:
+1303 results in Proposition 1 and Proposition 2, we have min L𝑐𝑜𝑛𝑡 ∝ 1361
+1 1 3 3 0 0 4 5 L 𝑛 (𝑘 𝑜𝑑 ) (cid:27) 2 ∗ E𝑖∼𝑝 (𝑥 ) (V𝑠∼𝑝𝑎𝑢𝑔 (𝑠 |𝑖) Z 𝑠 𝑖𝑘 ). (23) i m n a fo x r M m I a ( t Z io 𝑆 n |𝑋 , w ). e B h a a se v d e o M n I( t Z he 𝑆, d 𝑆 e | fi 𝑋 n ) it = io 𝐻 n ( o Z f 𝑆 th |𝑋 e ) co + n 𝐻 di ( t Z io 𝑆 n |𝑆 a ) l , m w u h tu ic a h l 1 1 3 3 6 6 2 3
+1306 For the neighborhood-level loss L 𝑛 (𝑘 𝑒𝑖 ) (Z(𝑡 ), Z(𝑎) ), we first define equals to 𝐻 (Z 𝑆 |𝑋 ) since 𝐻 (Z 𝑆 |𝑆) = 0. Using the results in Propos- 1364
+1307 𝛿 𝑖 𝑠 𝑘 = Z 𝑠 𝑖𝑘 −E𝑗∼𝑝 N (·|𝑖) Z 𝑠 𝑗𝑘 , where 𝑝 N (·|𝑖) depicts the distribution of tion 1, we directly have min L𝑐𝑜𝑛𝑡 ∝ MI(Z 𝑆, 𝑆 |𝑋 ). The theorem is 1365
+1308 neighbors around node 𝑣 𝑖 . Then, we can rearrange L 𝑛 (𝑘 𝑒𝑖 ) as follows: proved. □ 1366
+1309 1367
+1310 L (𝑘) (Z(𝑡 ), Z(𝑎) ) = ∑︁ (Z (𝑡 ) − 1 ∑︁ Z (𝑎) ) 2 B RELATED WORK 1368
+1311 𝑛𝑒𝑖 𝑣𝑖 ∈V 𝑖𝑘 𝑑 (𝑣 𝑖 ) 𝑣𝑗 ∈N(𝑣𝑖 ) 𝑗𝑘 Attributed Graph Clustering. GNNs achieve notable success on 1369
+1312 1370
+1313 = E𝑖∼𝑝 (𝑥 ) E𝑠𝑡,𝑠𝑎∼𝑝𝑎𝑢𝑔 (·|𝑖) (Z 𝑖 ( 𝑘 𝑡 ) − E𝑗∼𝑝 N (·|𝑖) Z ( 𝑗𝑘 𝑎) ) 2 g an ra d p a h n -r i e n l n a e te r d pr t o as d k u s c . t V d G ec A o E de [ r 3 t 4 o ] g e e m n p e l r o a y te s i G n C te N rp [ r 3 e 5 ta ] b a le s g th ra e p e h n r c e o p d r e e r - 1371
+1 1 3 3 1 1 4 5 = E𝑖∼𝑝 (𝑥 ) E𝑠𝑡,𝑠𝑎∼𝑝𝑎𝑢𝑔 (·|𝑖) (Z 𝑖 ( 𝑘 𝑡 ) − Z 𝑖 ( 𝑘 𝑎) + 𝛿 𝑖 ( 𝑘 𝑎) ) 2 sentations. Subsequently, MGAE [71] utilizes a graph auto-encoder 1 1 3 3 7 7 2 3
+1316 = E𝑖 E𝑠𝑡,𝑠𝑎 [(Z
+𝑖
+(
+𝑘
+𝑡 ) − Z
+𝑖
+(
+𝑘
+𝑎) ) 2 + (𝛿
+𝑖
+(
+𝑘
+𝑎) ) 2 + 2𝛿
+𝑖
+(
+𝑘
+𝑎) (Z
+𝑖
+(
+𝑘
+𝑡 ) − Z
+𝑖
+(
+𝑘
+𝑎) )]. t
+th
+o
+e
+o
+l
+b
+e
+t
+a
+a
+r
+i
+n
+n
+ed
+gr
+e
+a
+m
+ph
+be
+e
+d
+m
+di
+b
+n
+e
+g
+d
+s
+d
+f
+i
+o
+n
+r
+g
+fi
+s,
+n
+f
+a
+o
+l
+l
+c
+lo
+lu
+w
+s
+e
+te
+d
+ri
+b
+n
+y
+g
+s
+r
+p
+es
+e
+u
+c
+l
+t
+t
+r
+s
+a
+.
+l
+F
+c
+o
+l
+l
+u
+lo
+s
+w
+te
+i
+r
+n
+in
+g
+g
+th
+o
+i
+n
+s,
+1374
+1317 (cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32) (cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32) (cid:32)(cid:32) (cid:32)(cid:32) (cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32) (cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32) 1375
+(cid:124) (cid:123)(cid:122) (cid:125) (cid:124) (cid:123)(cid:122) (cid:125) (cid:124) (cid:123)(cid:122) (cid:125) AGE [14] proposes using the disentangled GNN with the optimal
+1318 term 1 term 2 term 3 1376
+low-pass filter to encode the input graph. Additionally, DiffPool [80]
+1319 The first term shares the same formulation with L 𝑛 (𝑘 𝑜𝑑 ) . Hence, we generates soft clustering assignments by applying the softmax func- 1377
+1320 can derive the same result as in (23). For the third term, we have: 1378
+tion to the output of the GNN. MinCutPool [4] adopts a similar
+1321 1379
+1322 term 3 = 2E𝑖 E𝑠𝑡,𝑠𝑎 [(Z 𝑖 ( 𝑘 𝑎) − E𝑗 Z 𝑗 ( 𝑘 𝑎) )(Z 𝑖 ( 𝑘 𝑡 ) − Z 𝑖 ( 𝑘 𝑎) )] f m o a rm liz u e l d at c io u n t o a b n j d ec o t p iv ti e m [ i 6 z 3 e ] s a th n e d m th o e d o e r l t t h o o w g a o r n d a s li m ty in o i b m je iz c i t n iv g e t . h S e u n b o se r - - 1380
+1
+1
+3
+3
+2
+2
+3
+4
+= 2E𝑖 E𝑠𝑡,𝑠𝑎 [Z
+𝑖
+(
+𝑘
+𝑡 ) Z
+𝑖
+(
+𝑘
+𝑎) − (Z
+𝑖
+(
+𝑘
+𝑎) ) 2 − Z
+𝑖
+(
+𝑘
+𝑡 ) E𝑗 Z (
+𝑗𝑘
+𝑎) + Z
+𝑖
+(
+𝑘
+𝑎) E𝑗 Z (
+𝑗𝑘
+𝑎) ] quently, DMoN [67] and JBGNN [3] are proposed to enhance the 1
+1
+3
+3
+8
+8
+1
+2
+clustering-based and orthogonality-based objectives in MinCutPool,
+1325 = 2E𝑖 [(E𝑠 Z 𝑠
+𝑖𝑘
+) 2 − E𝑠 (Z 𝑠
+𝑖𝑘
+) 2 − E𝑠 Z 𝑠
+𝑖𝑘
+E𝑗 Z 𝑠
+𝑗𝑘
++ E𝑠 Z 𝑠
+𝑖𝑘
+E𝑗 Z 𝑠
+𝑗𝑘
+]
+respectively. Contrastive learning has also been extensively studied
+1383
+1
+1
+3
+3
+2
+2
+6
+7
+= −2E𝑖 [V𝑠 Z 𝑠
+𝑖𝑘
+]. in GNN-based graph clustering. SCGC [44] constructs different 1
+1
+3
+3
+8
+8
+4
+5
+views with parameter un-shared siamese encoders and embedding
+1328 Therefore, we have the following results for L
+𝑛
+(𝑘
+𝑒𝑖
+) (Z(𝑡 ), Z(𝑎) ):
+perturbation, while HSAN [45] focuses on hard positive and nega-
+1386
+1329 1387
+1330 L 𝑛 (𝑘 𝑒𝑖 ) (Z(𝑡 ), Z(𝑎) ) (cid:27) 2 ∗ E𝑖 (V𝑠 Z 𝑠 𝑖𝑘 ) + E𝑖 E𝑠 (𝛿 𝑖 𝑠 𝑘 ) 2 − 2 ∗ E𝑖 (V𝑠 Z 𝑠 𝑖𝑘 ) tive samples during contrastive learning. However, these methods 1388
+primarily rely on typical GNNs, which operate under the homophily
+1 1 3 3 3 3 1 2 (cid:27) E𝑖∼𝑝 (𝑥 ) E𝑠∼𝑝𝑎𝑢𝑔 (·|𝑖) (Z 𝑠 𝑖𝑘 − E𝑗∼𝑝 N (·|𝑖) Z 𝑠 𝑗𝑘 ) 2. (24) 1 1 3 3 8 9 9 0
+1333 1391
+1334 12 1392
+
+--- PAGE 13 ---
+Diffusion-based Graph-agnostic Clustering Conference’17, July 2017, Washington, DC, USA
+1393 Table 8: Links to code of baseline methods. denote the following relationship between users. The texts users 1451
+1394 post on the website are collected as node features and labels are 1452
+Method Link
+1395 the user interest groups. 1453
+1396 AGE https://github.com/thunlp/AGE We also evaluate our method on 6 homophily datasets. Cora, Cite- 1454
+1397 MinCutPool https://github.com/FilippoMB/ Spectral-Clustering- seer, and Pubmed [32] are citation networks with nodes denoting 1455
+1398 with-Graph-Neural-Networks-for-Graph-Pooling papers and edges denoting the citation relationship between pa- 1456
+1399 SCGC https://github.com/yueliu1999/SCGC pers. Each node is associated with a bag-of-word vector as the node 1457
+DMoN https://github.com/google-research/
+1400 feature and the labels are the topics of papers. BlogCatalog [42] is 1458
+google-research/tree/master/graph_embedding/dmon
+1401 DGCluster https://github.com/pyrobits/DGCluster another social network dataset. The nodes are website users, with 1459
+1402 VGAE https://github.com/DaehanKim/vgae_pytorch the contents of post blogs as node features, and edges represent the 1460
+1403 DGI https://github.com/PetarV-/DGI relationship between users. The labels are the blog topics. BAT and 1461
+1404 CCA-SSG https://github.com/hengruizhang98/CCA-SSG UAT [53, 60] are air-traffic networks with nodes denoting airports 1462
+1405 DGCN https://github.com/Panern/DGCN and edges denoting commercial flights between airports. Labels are 1463
+1406 HoLe https://github.com/galogm/HoLe level of airport activity measured in a specific period. 1464
+HGRL https://github.com/yifanQi98/HGRL
+1407 1465
+1408 PolyGCL https://github.com/ChenJY-Count/PolyGCL C.2 Baselines 1466
+1409 We compare our DGAC against 12 baseline methods: 1467
+1410 assumption, leading to an unsatisfied performance on heterophilic • DGCN [56] constructs two new graphs—one highly homophilic 1468
+1411 graph clustering as shown in our experiments. and the other heterophilic—and applies a mixed filter to facilitate 1469
+1412 Heterophilic Graph Neural Networks. Nt and Maehara [54] clustering. 1470
+1413 identify that most GNNs act as low-pass filters, smoothing rep- • HoLe [22] improves clustering by refining the graph topology 1471
+1414 resentations of connected nodes. This approach struggles with based on high-confidence clustering results. 1472
+1415 heterophilic graphs, prompting subsequent research to address this • HGRL [9] learns representations by preserving original features 1473
+1416 limitation. Specifically, GPR-GNN [12] and ASGC [7] employ gen- and extracting information from the generalized neighborhood. 1474
+1417 eralized polynomial graph filtering with learnable filter weights • PolyGCL [8] employs polynomial filters to conduct contrastive 1475
+1418 to adapt to varying degrees of homophily. BernNet [25] utilizes learning between low-pass and high-pass views. 1476
+1419 Bernstein polynomials to approximate complex filters. Meanwhile, • AGE [14] proposes the use of an optimal low-pass filter and 1477
+1420 FB-GNN [49] and ACM-GNN [48] integrate multiple graph filters iteratively strengthens the filtered features. 1478
+1421 with learnable inter-filter weights to capture a broader frequency • MinCutPool [4] optimizes the model to minimize the normal- 1479
+1422 spectrum. Other methods mitigate the impact of heterophilic neigh- ized cut objective. 1480
+1423 bors by leveraging higher-order relationships within the graph • SCGC [44] constructs different views using un-shared Siamese 1481
+1424 structure. Mixhop [1] and H GCN [85] utilize multi-hop message encoders and embedding perturbation and then conducts con- 1482
+2
+1425 passing from a broader view. SimP-GCN [30] and Geom-GCN [58] trastive learning between views. 1483
+1426 extend local neighborhoods based on feature or structural simi- • DMoN [67] aims to optimize a modularity-based objective with 1484
+1427 larity. Additionally, discriminative message-passing mechanisms an orthogonal regularization term. 1485
+1428 have been proposed to avoid noisy heterophilic edges, including • DGCluster [2] parameterizes the modularity with similarity 1486
+1429 signed message passing in FAGCN [5] and gating strategy in GBK- between nodes and optimizes the modularity-based clustering 1487
+1430 GNN [16]. Most of the existing heterophily GNNs rely on node objective. 1488
+1431 labels for supervision, limiting their applicability in unsupervised • VGAE [34] is a graph auto-encoder that uses a GCN model as 1489
+1432 tasks, such as graph clustering. the encoder and an inner product as the decoder. 1490
+1433 • DGI [69] learns representations by maximizing the mutual in- 1491
+1434 C ADDITIONAL EXPERIMENTAL DETAILS formation between patch representations and graph summaries. 1492
+1435 • CCA-SSG [81] optimizes a feature-level objective inspired by 1493
+C.1 Datasets
+1436 classical Canonical Correlation Analysis. 1494
+1437 We conduct the graph clustering experiment on 6 heterophily The code of baseline methods is obtained from the repository pro- 1495
+1438 graphs. Specifically, Texas, Wisconsin, and Cornell [58] are WebKB vided by the authors. Table 8 summarizes the links to the baseline 1496
+1439 datasets, with nodes representing web pages collected from the methods code. 1497
+1440 corresponding university and edges denoting hyperlinks between 1498
+1441 web pages. Nodes are associated with the bag-of-words features C.3 Detailed Settings 1499
+1442 and are classified into five categories: student, project, course, staff, 1500
+For baselines, we employ the recommended hyper-parameter set-
+1443 and faculty. Squirrel and Chamaleon [58, 61] are Wikipedia page 1501
+tings provided by the authors. For the dataset without recom-
+1444 datasets, where nodes denote articles on Wikipedia about a specific 1502
+mended configuration, we set the values of hyper-parameters by
+1445 topic and edges denote the mutual links between web pages. Node 1503
+grid search following the search guidance given in the paper. To
+1446 features indicate the presence and absence of several particular 1504
+ensure the fairness of comparison, we fix the embedding dimension
+1447 nouns in the articles and node labels are the monthly traffic level 1505
+and maximum training epoch across all competitors. Following
+1448 of the pages. Flickr [42] is a social network graph dataset where 1506
+nodes represent users on the image share website Flickr, and edges previous work [43–45], we set the maximum training epoch to
+1449 1507
+1450 13 1508
+
+--- PAGE 14 ---
+Conference’17, July 2017, Washington, DC, USA Anon. Submission Id: 1776
+1509 1567
+1510 1568
+1511 1569
+1512 1570
+1513 1571
+1514 1572
+1515 1573
+1516 1574
+1517 1575
+1518 1576
+1519 1577
+1520 1578
+1521
+(a) HGRL. (b) AGE. (c) HoLe. (d) DGI. (e) DGAC.
+1579
+1522 1580
+1523 Figure 3: Visualization on Cora in the first row, and Flickr in the second row. 1581
+1524 Table 9: Results on heterophily graphs regarding ARI and 𝐹1. The best and second-best results are in bold and underlined. 1582
+1525 1583
+1526 1584
+Texas Wisconsin Cornell Squirrel Chameleon Flickr
+1527 Methods Ave. Rank 1585
+1528
+ARI 𝐹1 ARI 𝐹1 ARI 𝐹1 ARI 𝐹1 ARI 𝐹1 ARI 𝐹1
+1586
+1529 AGE 16.75 26.62 9.36 31.33 2.05 21.92 3.78 17.89 6.83 34.09 21.21 43.43 6.8 1587
+1530 MinCutPool 2.71 17.13 0.20 13.86 1.92 18.63 5.15 17.67 9.12 31.79 12.24 32.71 9.7 1588
+1531 SCGC 11.01 31.52 4.44 27.63 2.92 32.37 2.68 23.49 1.72 24.88 3.33 18.77 8.6 1589
+1532 DMoN 20.87 27.72 9.02 24.34 1.23 23.18 1.28 25.33 9.83 30.78 18.55 40.13 7.3 1590
+1533 DGCluster 4.50 25.52 2.19 26.24 0.46 22.37 0.32 19.47 5.59 25.58 7.75 23.02 10.3 1591
+1534 VGAE 19.03 31.66 8.81 30.92 2.07 23.25 0.37 18.99 8.35 21.89 12.90 31.44 8.1 1592
+1535 DGI 16.52 33.58 9.77 32.46 4.87 28.87 2.82 23.45 2.21 25.51 2.73 16.54 7.5 1593
+1536 CCA-SSG 5.96 21.86 9.24 30.21 15.79 28.50 0.98 17.71 1.32 20.32 6.83 23.81 9.4 1594
+1537 1595
+DGCN 24.89 35.21 20.09 31.25 2.11 19.74 6.80 30.70 12.78 39.21 3.06 20.94 5.6
+1538 1596
+HoLe 6.45 25.95 5.42 34.77 4.94 29.76 4.47 23.43 4.99 30.08 42.97 62.30 6.2
+1539 1597
+HGRL 41.12 39.00 35.78 39.19 38.74 36.79 6.03 26.17 15.62 33.04 22.81 46.47 2.5
+1540 1598
+PolyGCL 9.17 23.67 31.07 40.27 4.32 25.22 3.18 17.61 13.09 28.60 - - 6.9
+1541 1599
+1542 DGAC 53.24 48.42 59.48 51.87 48.20 43.32 9.32 29.46 15.57 40.54 64.25 81.66 1.2 1600
+1543 1601
+1544 Table 10: Results on homophily graphs regarding ARI and 𝐹1. The best and second-best results are in bold and underlined. 1602
+1545 1603
+1546 1604
+Cora Citeseer Pubmed BlogCatalog BAT UAT
+1547 Methods Ave. Rank 1605
+1548
+ARI 𝐹1 ARI 𝐹1 ARI 𝐹1 ARI 𝐹1 ARI 𝐹1 ARI 𝐹1
+1606
+1549 AGE 52.26 70.72 41.31 62.11 33.22 70.09 32.63 56.28 44.60 65.00 23.28 52.93 2.9 1607
+1550 MinCutPool 32.48 50.95 22.44 45.49 18.43 58.31 3.05 15.34 17.39 50.09 22.34 53.95 9.3 1608
+1551 SCGC 46.56 65.17 40.03 61.13 0.23 31.90 7.70 31.43 46.03 74.29 19.61 55.23 6.3 1609
+1552 DMoN 30.36 51.03 24.05 47.22 17.46 59.60 31.31 55.18 23.84 56.75 24.87 55.22 7.3 1610
+1553 DGCluster 35.03 56.42 9.13 37.90 29.06 68.12 19.79 41.36 17.21 49.89 21.84 50.56 8.3 1611
+1554 VGAE 48.27 69.64 26.69 51.29 32.77 69.49 4.24 22.51 35.95 63.62 17.50 51.09 6.3 1612
+1555 DGI 47.68 68.55 44.35 64.33 25.22 65.66 21.21 48.66 19.33 48.67 21.94 53.74 5.6 1613
+1556 CCA-SSG 45.04 60.54 35.39 58.47 25.77 63.00 6.24 30.09 33.26 59.26 16.92 48.00 7.6 1614
+1557 1615
+DGCN 2.66 16.15 10.20 31.49 1.71 30.80 7.43 25.42 31.41 61.70 20.64 44.11 10.3
+1558 1616
+HoLe 44.81 66.15 33.97 54.25 0.42 31.85 43.03 59.17 32.87 49.50 21.16 49.57 7.3
+1559 1617
+HGRL 46.72 61.55 38.48 60.15 23.91 56.78 32.01 54.16 27.32 50.02 20.45 41.21 7.3
+1560 1618
+PolyGCL 5.68 25.18 5.76 28.67 23.09 63.30 3.68 21.11 12.31 45.52 11.10 43.07 11.6
+1561 1619
+1562 DGAC 54.79 74.12 45.20 64.68 34.07 70.60 54.11 72.96 50.64 77.55 28.52 55.98 1.0 1620
+1563 1621
+1564 1622
+1565 1623
+1566 14 1624
+
+--- PAGE 15 ---
+Diffusion-based Graph-agnostic Clustering Conference’17, July 2017, Washington, DC, USA
+1625 500. For our method, we implement DGAC using PyTorch [57]. We accuracy and NMI. DGAC outperforms other competitors in almost 1683
+1626 utilize the Adam optimizer [33] with a learning rate of 10−3 and all cases and achieves the highest average rank on both heterophilic 1684
+1627 a weight decay of 5 × 10−4. We set the weight of L𝑐𝑙𝑢𝑠𝑡𝑒𝑟 to 0.02 and homophilic graphs, which demonstrates again the superiority 1685
+1628 and the 𝜖 in L𝑟𝑒𝑐𝑜𝑛𝑠 to 1. We grid search 𝑤 𝑑𝑒𝑐 and 𝑤 𝑐𝑜𝑛𝑡 in Eq. (18) of DGAC aiming at the hybrid DE minimization objective. 1686
+1629 from set {10−5, 10−4, 10−3, 6 × 10−3}. In Eq. (12) and Eq. (13), we 1687
+1630 set 𝐿 𝑡 = 𝐿 𝑎 = 𝐿, and search 𝐿 and 𝛼 from range [1, 10] and [0, 1], re- C.5 Visualization 1688
+1631 spectively. In Eq. (16), we set the search range of 𝐿 𝐶 and 𝛾 to [1, 10] To deepen the understanding of the superior performance of DGAC, 1689
+1632 and [0, 1]. For the trade-off parameter 𝛽 in Eq. (14), we search from we visualize the learned node embedding of the top-five methods, 1690
+1633 [0, 1]. The values of hyper-parameters of each dataset are presented ranked by the average performance across all datasets, which are: 1691
+1634 in Table 7. 1. DGAC; 2. HGRL [9]; 3. AGE [14]; 4. HoLe [22]; 5. DGI [69]. Fig- 1692
+1635 ure 3 shows the t-SNE [68] visualization of the top-five methods 1693
+1636 C.4 Additional Clustering Results on Cora and Flickr datasets. Nodes are colored according to the 1694
+1637 The clustering results in terms of ARI and 𝐹1 of our DGAC against ground-truth clusters. As observed, the embedding generated by 1695
+1638 12 baseline methods are reported in Table 9 and Table 10. The DGAC demonstrates clear discrimination among different clusters, 1696
+1639 results exhibit a similar distribution to clustering results in terms of indicating the potential for accurate clustering. 1697
+1640 1698
+1641 1699
+1642 1700
+1643 1701
+1644 1702
+1645 1703
+1646 1704
+1647 1705
+1648 1706
+1649 1707
+1650 1708
+1651 1709
+1652 1710
+1653 1711
+1654 1712
+1655 1713
+1656 1714
+1657 1715
+1658 1716
+1659 1717
+1660 1718
+1661 1719
+1662 1720
+1663 1721
+1664 1722
+1665 1723
+1666 1724
+1667 1725
+1668 1726
+1669 1727
+1670 1728
+1671 1729
+1672 1730
+1673 1731
+1674 1732
+1675 1733
+1676 1734
+1677 1735
+1678 1736
+1679 1737
+1680 1738
+1681 1739
+1682 15 1740

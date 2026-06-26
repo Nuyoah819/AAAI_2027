@@ -1,0 +1,44 @@
+[
+  {
+    "dataset": "blogcatalog",
+    "method": "ELSS-local",
+    "source": "local-rerun",
+    "n": 3,
+    "params": {
+      "k_rank": 7,
+      "n_anchors": 300,
+      "power": 3,
+      "d": 0.8,
+      "gamma": 0.005
+    },
+    "acc_mean": 67.98,
+    "acc_std": 2.97,
+    "nmi_mean": 50.13,
+    "nmi_std": 1.89,
+    "ari_mean": 44.83,
+    "ari_std": 3.35,
+    "f1_mean": 66.59,
+    "f1_std": 3.66
+  },
+  {
+    "dataset": "flickr",
+    "method": "ELSS-local",
+    "source": "local-rerun",
+    "n": 3,
+    "params": {
+      "k_rank": 9,
+      "n_anchors": 300,
+      "power": 1,
+      "d": 0.8,
+      "gamma": 0.005
+    },
+    "acc_mean": 19.81,
+    "acc_std": 3.63,
+    "nmi_mean": 15.09,
+    "nmi_std": 5.1,
+    "ari_mean": 1.97,
+    "ari_std": 1.37,
+    "f1_mean": 12.61,
+    "f1_std": 3.43
+  }
+]

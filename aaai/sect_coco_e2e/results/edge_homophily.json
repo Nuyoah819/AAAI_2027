@@ -1,0 +1,50 @@
+[
+  {
+    "dataset": "acm",
+    "nodes": 3025,
+    "edges_undirected": 13128,
+    "classes": 3,
+    "same_label_edges": 10775,
+    "edge_homophily": 0.8207647775746496
+  },
+  {
+    "dataset": "dblp",
+    "nodes": 4057,
+    "edges_undirected": 2498219,
+    "classes": 4,
+    "same_label_edges": 1673021,
+    "edge_homophily": 0.6696854839387579
+  },
+  {
+    "dataset": "pubmed",
+    "nodes": 19717,
+    "edges_undirected": 44324,
+    "classes": 3,
+    "same_label_edges": 35565,
+    "edge_homophily": 0.8023869686851367
+  },
+  {
+    "dataset": "wiki",
+    "nodes": 2405,
+    "edges_undirected": 11596,
+    "classes": 17,
+    "same_label_edges": 7070,
+    "edge_homophily": 0.6096929975853743
+  },
+  {
+    "dataset": "flickr",
+    "nodes": 7575,
+    "edges_undirected": 239738,
+    "classes": 9,
+    "same_label_edges": 57198,
+    "edge_homophily": 0.2385854557892366
+  },
+  {
+    "dataset": "blogcatalog",
+    "nodes": 5196,
+    "edges_undirected": 171743,
+    "classes": 6,
+    "same_label_edges": 68882,
+    "edge_homophily": 0.40107602638826617
+  }
+]
