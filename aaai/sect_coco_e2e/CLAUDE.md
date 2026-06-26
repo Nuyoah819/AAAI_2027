@@ -3,6 +3,14 @@
 ## Project directory
 `D:\study\graduate_student\papers\AAAI2027\AAAI0622\`
 
+## Workspace versioning
+This visible workspace is not a Git repository. Do not run `git init`,
+`git add`, `git commit`, `git status`, or `git push` here as part of the normal
+workflow.
+
+A Stop hook mirrors the edited files into a hidden clone repository and
+performs the actual `commit + push` automatically after each editing session.
+
 ## One-line summary
 统一端到端图聚类框架，核心管线：边置信度评分 → 可微拓扑收缩 → 频率感知图滤波 → APTC 聚类头（Sinkhorn 最优传输 + 拓扑精修）。
 

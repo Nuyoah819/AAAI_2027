@@ -3086,6 +3086,39 @@ EXPERIMENT_VARIANTS["v41b_100"] = {
         "cluster_update_interval": 100,
     },
 }
+EXPERIMENT_VARIANTS["v41c"] = {
+    "output_stem": "unified_aptc_9datasets_v41c",
+    "overrides": {
+        **EXPERIMENT_VARIANTS["v28b"]["overrides"],
+        "aptc_init_teacher_weight": 0.10,
+        "cluster_update_interval": 25,
+        "aptc_teacher_conf_power": 2.0,
+        "aptc_teacher_conf_floor": 0.10,
+        "aptc_teacher_conf_center": 0.50,
+    },
+}
+EXPERIMENT_VARIANTS["v41c_strict"] = {
+    "output_stem": "unified_aptc_9datasets_v41c_strict",
+    "overrides": {
+        **EXPERIMENT_VARIANTS["v28b"]["overrides"],
+        "aptc_init_teacher_weight": 0.10,
+        "cluster_update_interval": 25,
+        "aptc_teacher_conf_power": 2.0,
+        "aptc_teacher_conf_floor": 0.05,
+        "aptc_teacher_conf_center": 0.60,
+    },
+}
+EXPERIMENT_VARIANTS["v41c_soft"] = {
+    "output_stem": "unified_aptc_9datasets_v41c_soft",
+    "overrides": {
+        **EXPERIMENT_VARIANTS["v28b"]["overrides"],
+        "aptc_init_teacher_weight": 0.10,
+        "cluster_update_interval": 25,
+        "aptc_teacher_conf_power": 1.5,
+        "aptc_teacher_conf_floor": 0.15,
+        "aptc_teacher_conf_center": 0.45,
+    },
+}
 
 REMOVED_BACKEND_KEYS = {
     "final_label_mode",

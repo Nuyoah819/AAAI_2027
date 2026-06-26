@@ -5799,3 +5799,110 @@ is:
 - `v37c` remains the safest retained unified version
 - reducing teacher refresh frequency alone is insufficient to make the KMeans
   teacher universally safe
+
+## 2026-06-26: v41c Confidence-Weighted KMeans Teacher
+
+### Motivation
+
+`v41a` established that the KMeans teacher carries real useful signal, while
+`v41b` showed that simply reducing refresh frequency is not enough to resolve
+the `DBLP` / `Wiki` conflict. That points to teacher noise itself, not refresh
+cadence, as the main problem.
+
+The original teacher loss treated every node equally:
+
+```python
+KL(q_reg || teacher)
+```
+
+So `v41c` changed only the teacher-loss formula into a unified confidence-aware
+version. No dataset routing, no backend selector, and no final-label logic was
+changed.
+
+### Formula
+
+The new loss computes per-node KL and weights it by teacher confidence:
+
+- `teacher_conf = max_k teacher[i, k]`
+- confidence is centered and normalized by `aptc_teacher_conf_center`
+- low-confidence nodes retain a small floor weight
+- high-confidence nodes receive amplified supervision through
+  `aptc_teacher_conf_power`
+
+Default `v41c` settings:
+
+- `aptc_teacher_conf_power = 2.0`
+- `aptc_teacher_conf_floor = 0.10`
+- `aptc_teacher_conf_center = 0.50`
+
+Diagnostics were also extended with:
+
+- `teacher_conf_mean`
+- `teacher_conf_std`
+- `teacher_weight_mean`
+- `teacher_weight_active_ratio`
+
+### Smoke: v41c
+
+80-epoch smoke on all 9 datasets:
+
+| Dataset | v37c smoke | v41a | v41c | delta vs v37c | init_teacher | teacher_conf_mean | teacher_weight_active_ratio | proto_sep |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| acm | 70.38 | 82.78 | 82.91 | +12.53 | 0.0037 | 0.3662 | 0.0000 | 0.6338 |
+| dblp | 66.48 | 63.25 | 63.22 | -3.26 | 0.2081 | 0.3999 | 0.0012 | 0.3062 |
+| pubmed | 63.21 | 62.09 | 62.00 | -1.21 | 0.1568 | 0.4344 | 0.0084 | 0.1790 |
+| wiki | 44.78 | 38.54 | 42.70 | -2.08 | 0.2733 | 0.0868 | 0.0000 | 0.3642 |
+| flickr | 36.81 | 47.42 | 46.94 | +10.13 | 0.0418 | 0.1288 | 0.0000 | 0.5915 |
+| blogcatalog | 84.60 | 82.56 | 82.62 | -1.98 | 0.1993 | 0.2169 | 0.0000 | 0.2725 |
+| squirrel | 30.32 | 30.36 | 30.44 | +0.12 | 0.1569 | 0.2415 | 0.0000 | 0.2331 |
+| texas | 73.77 | 73.77 | 73.22 | -0.55 | 0.6442 | 0.3274 | 0.0000 | 0.1085 |
+| chameleon | 32.89 | 32.72 | 32.94 | +0.05 | 0.1390 | 0.2702 | 0.0000 | 0.0475 |
+
+This already repaired `Wiki` strongly relative to `v41a`, while preserving the
+main `ACM` / `Flickr` gains. However, `DBLP` was still below the desired safety
+line, so one stricter confidence filter was tested.
+
+### Smoke: v41c_strict
+
+80-epoch smoke on all 9 datasets:
+
+| Dataset | v37c smoke | v41a | v41c_strict | delta vs v37c | init_teacher | teacher_conf_mean | teacher_weight_active_ratio | proto_sep |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| acm | 70.38 | 82.78 | 82.71 | +12.33 | 0.0037 | 0.3662 | 0.0000 | 0.6337 |
+| dblp | 66.48 | 63.25 | 62.46 | -4.02 | 0.2070 | 0.3999 | 0.0000 | 0.3062 |
+| pubmed | 63.21 | 62.09 | 62.46 | -0.75 | 0.1580 | 0.4344 | 0.0000 | 0.1796 |
+| wiki | 44.78 | 38.54 | 42.16 | -2.62 | 0.2754 | 0.0868 | 0.0000 | 0.3640 |
+| flickr | 36.81 | 47.42 | 45.64 | +8.83 | 0.0410 | 0.1288 | 0.0000 | 0.5918 |
+| blogcatalog | 84.60 | 82.56 | 82.95 | -1.65 | 0.1995 | 0.2169 | 0.0000 | 0.2745 |
+| squirrel | 30.32 | 30.36 | 30.44 | +0.12 | 0.1564 | 0.2415 | 0.0000 | 0.2332 |
+| texas | 73.77 | 73.77 | 73.77 | +0.00 | 0.6466 | 0.3274 | 0.0000 | 0.1087 |
+| chameleon | 32.89 | 32.72 | 33.47 | +0.58 | 0.1394 | 0.2702 | 0.0000 | 0.0498 |
+
+Because `ACM` stayed above `78`, the planned `v41c_soft` fallback was not
+needed. `v41c_strict` did not solve `DBLP`, and it was not better than the base
+`v41c` on the key conflict pair, so the sweep stopped there.
+
+Smoke accumulated ACC:
+
+- `v41c`: `516.99`
+- `v41c_strict`: `516.05`
+
+### Conclusion
+
+`v41c` improves on `v41a` by making the KMeans teacher much safer for `Wiki`
+while preserving strong gains on `ACM` and `Flickr`. But it still does not
+repair `DBLP` enough to pass the smoke safety rule, so no 260-epoch full run
+was launched.
+
+The most important diagnostic insight is that teacher confidence is often low
+across the whole graph, so the current centered weighting mostly collapses to
+the floor term. In other words, confidence-weighted teacher supervision is a
+promising direction, but this specific normalized weighting is still too weak to
+separate useful teacher nodes from noisy ones on `DBLP`.
+
+Current retained conclusion:
+
+- `v41a`: mechanism proof that teacher guidance is real
+- `v41b`: refresh-frequency scan rejected
+- `v41c`: confidence weighting improves robustness, especially on `Wiki`
+- `v37c`: still the safest retained unified final candidate

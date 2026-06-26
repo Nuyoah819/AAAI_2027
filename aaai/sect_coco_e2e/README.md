@@ -9,6 +9,21 @@ Mirrored to https://github.com/Nuyoah819/AAAI_2027 under `aaai/sect_coco_e2e/`
 automatically after each editing session (via the Stop hook in
 `.claude/settings.json`).
 
+## Repository workflow
+
+This working directory is intentionally **not** a Git repository. Do not run
+`git init`, `git add`, `git commit`, or `git push` here.
+
+Version synchronization is handled automatically by the Stop hook after each
+editing session:
+
+- the working directory files are mirrored into a hidden clone repository
+- that hidden clone performs `commit + push`
+- the visible working directory remains a plain filesystem workspace
+
+All future automation and agent work should assume that Git operations belong to
+the hidden mirrored clone, not to this workspace.
+
 ## Pipeline
 
 ```

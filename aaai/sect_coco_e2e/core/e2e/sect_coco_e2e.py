@@ -194,6 +194,9 @@ class E2ESECTCoCoConfig:
     aptc_embedding_gate_ramp_epochs: int = 1
     aptc_embed_consistency_graph_gate: bool = False
     aptc_init_teacher_weight: float = 0.10
+    aptc_teacher_conf_power: float = 2.0
+    aptc_teacher_conf_floor: float = 0.10
+    aptc_teacher_conf_center: float = 0.50
     aptc_proto_readout_weight: float = 0.0
     aptc_proto_readout_temperature: float = 0.20
     aptc_proto_readout_conf_power: float = 1.0
@@ -1235,8 +1238,20 @@ class EndToEndSECTCoCoModule(nn.Module):
             target = target_distribution(q_cluster).detach()
         cluster_loss = F.kl_div(q_cluster.clamp_min(1e-8).log(), target, reduction="batchmean")
         transport_loss = F.kl_div(q_reg.clamp_min(1e-8).log(), out["q_transport"].detach(), reduction="batchmean")
+        teacher_conf = q_reg.new_zeros(q_reg.shape[0])
+        conf_weight = q_reg.new_zeros(q_reg.shape[0])
+        conf_floor = float(cfg.aptc_teacher_conf_floor)
         if self.init_teacher.numel() == q_reg.numel():
-            init_teacher_loss = F.kl_div(q_reg.clamp_min(1e-8).log(), self.init_teacher.detach(), reduction="batchmean")
+            teacher = self.init_teacher.detach().clamp_min(1e-8)
+            q_log = q_reg.clamp_min(1e-8).log()
+            per_node_kl = F.kl_div(q_log, teacher, reduction="none").sum(dim=1)
+            teacher_conf = teacher.max(dim=1).values.detach()
+            conf_center = float(cfg.aptc_teacher_conf_center)
+            conf_power = max(1e-4, float(cfg.aptc_teacher_conf_power))
+            conf_scale = max(1.0 - conf_center, 1e-8)
+            conf_weight = ((teacher_conf - conf_center).clamp_min(0.0) / conf_scale)
+            conf_weight = conf_floor + (1.0 - conf_floor) * conf_weight.pow(conf_power)
+            init_teacher_loss = (conf_weight * per_node_kl).sum() / conf_weight.sum().clamp_min(1e-8)
         else:
             init_teacher_loss = q_reg.new_tensor(0.0)
         proto_readout_loss, proto_readout_stats = prototype_readout_alignment_loss(
@@ -1460,6 +1475,10 @@ class EndToEndSECTCoCoModule(nn.Module):
             "cluster": float(cluster_loss.detach().cpu()),
             "transport": float(transport_loss.detach().cpu()),
             "init_teacher": float(init_teacher_loss.detach().cpu()),
+            "teacher_conf_mean": float(teacher_conf.mean().detach().cpu()),
+            "teacher_conf_std": float(teacher_conf.std(unbiased=False).detach().cpu()),
+            "teacher_weight_mean": float(conf_weight.mean().detach().cpu()),
+            "teacher_weight_active_ratio": float((conf_weight > conf_floor + 1e-6).float().mean().detach().cpu()),
             "proto_readout": float(proto_readout_loss.detach().cpu()),
             "proto_readout_multiplier": float(self.runtime_proto_readout_multiplier),
             "prototype_anchor": float(prototype_anchor_loss.detach().cpu()),
