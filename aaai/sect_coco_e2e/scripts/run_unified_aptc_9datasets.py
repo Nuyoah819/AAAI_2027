@@ -3070,6 +3070,22 @@ EXPERIMENT_VARIANTS["v41a_high"] = {
         "aptc_init_teacher_weight": 0.20,
     },
 }
+EXPERIMENT_VARIANTS["v41b_50"] = {
+    "output_stem": "unified_aptc_9datasets_v41b",
+    "overrides": {
+        **EXPERIMENT_VARIANTS["v28b"]["overrides"],
+        "aptc_init_teacher_weight": 0.10,
+        "cluster_update_interval": 50,
+    },
+}
+EXPERIMENT_VARIANTS["v41b_100"] = {
+    "output_stem": "unified_aptc_9datasets_v41b",
+    "overrides": {
+        **EXPERIMENT_VARIANTS["v28b"]["overrides"],
+        "aptc_init_teacher_weight": 0.10,
+        "cluster_update_interval": 100,
+    },
+}
 
 REMOVED_BACKEND_KEYS = {
     "final_label_mode",
