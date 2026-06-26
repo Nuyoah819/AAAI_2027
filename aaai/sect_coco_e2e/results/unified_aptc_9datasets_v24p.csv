@@ -1,0 +1,61 @@
+dataset,candidate,status,acc,nmi,ari,f1,target_acc,target_nmi,target_ari,delta_acc,delta_nmi,delta_ari,runtime_sec,error
+acm,sect_coco_e2e_unified_aptc_acm,error,,,,,,,,,,,,"Traceback (most recent call last):
+  File ""D:\study\graduate_student\papers\AAAI2027\AAAI0622\scripts\run_unified_aptc_9datasets.py"", line 992, in main
+    pred = estimator.fit_predict(dataset.adj, features, graph_features_adj=graph_adj)
+  File ""D:\study\graduate_student\papers\AAAI2027\AAAI0622\core\e2e\sect_coco_e2e.py"", line 1400, in fit_predict
+    loss, diag = model.loss(x, target=target)
+                 ~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File ""D:\study\graduate_student\papers\AAAI2027\AAAI0622\core\e2e\sect_coco_e2e.py"", line 1139, in loss
+    ""embed_amplitude_blend"": float(out[""embed_amplitude_blend""].detach().cpu()),
+                                   ~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyError: 'embed_amplitude_blend'
+"
+dblp,sect_coco_e2e_unified_aptc_dblp,error,,,,,,,,,,,,"Traceback (most recent call last):
+  File ""D:\study\graduate_student\papers\AAAI2027\AAAI0622\scripts\run_unified_aptc_9datasets.py"", line 992, in main
+    pred = estimator.fit_predict(dataset.adj, features, graph_features_adj=graph_adj)
+  File ""D:\study\graduate_student\papers\AAAI2027\AAAI0622\core\e2e\sect_coco_e2e.py"", line 1400, in fit_predict
+    loss, diag = model.loss(x, target=target)
+                 ~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File ""D:\study\graduate_student\papers\AAAI2027\AAAI0622\core\e2e\sect_coco_e2e.py"", line 1139, in loss
+    ""embed_amplitude_blend"": float(out[""embed_amplitude_blend""].detach().cpu()),
+                                   ~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyError: 'embed_amplitude_blend'
+"
+pubmed,sect_coco_e2e_unified_aptc_pubmed,error,,,,,,,,,,,,"Traceback (most recent call last):
+  File ""D:\study\graduate_student\papers\AAAI2027\AAAI0622\scripts\run_unified_aptc_9datasets.py"", line 992, in main
+    pred = estimator.fit_predict(dataset.adj, features, graph_features_adj=graph_adj)
+  File ""D:\study\graduate_student\papers\AAAI2027\AAAI0622\core\e2e\sect_coco_e2e.py"", line 1400, in fit_predict
+    loss, diag = model.loss(x, target=target)
+                 ~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File ""D:\study\graduate_student\papers\AAAI2027\AAAI0622\core\e2e\sect_coco_e2e.py"", line 1139, in loss
+    ""embed_amplitude_blend"": float(out[""embed_amplitude_blend""].detach().cpu()),
+                                   ~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyError: 'embed_amplitude_blend'
+"
+texas,sect_coco_e2e_unified_aptc_texas,error,,,,,,,,,,,,"Traceback (most recent call last):
+  File ""D:\study\graduate_student\papers\AAAI2027\AAAI0622\scripts\run_unified_aptc_9datasets.py"", line 992, in main
+    pred = estimator.fit_predict(dataset.adj, features, graph_features_adj=graph_adj)
+  File ""D:\study\graduate_student\papers\AAAI2027\AAAI0622\core\e2e\sect_coco_e2e.py"", line 1400, in fit_predict
+    loss, diag = model.loss(x, target=target)
+                 ~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File ""D:\study\graduate_student\papers\AAAI2027\AAAI0622\core\e2e\sect_coco_e2e.py"", line 1139, in loss
+    ""embed_amplitude_blend"": float(out[""embed_amplitude_blend""].detach().cpu()),
+                                   ~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyError: 'embed_amplitude_blend'
+"
+blogcatalog,sect_coco_e2e_unified_aptc_blogcatalog,error,,,,,,,,,,,,"Traceback (most recent call last):
+  File ""D:\study\graduate_student\papers\AAAI2027\AAAI0622\scripts\run_unified_aptc_9datasets.py"", line 992, in main
+    pred = estimator.fit_predict(dataset.adj, features, graph_features_adj=graph_adj)
+  File ""D:\study\graduate_student\papers\AAAI2027\AAAI0622\core\e2e\sect_coco_e2e.py"", line 1400, in fit_predict
+    loss, diag = model.loss(x, target=target)
+                 ~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File ""D:\study\graduate_student\papers\AAAI2027\AAAI0622\core\e2e\sect_coco_e2e.py"", line 1139, in loss
+    ""embed_amplitude_blend"": float(out[""embed_amplitude_blend""].detach().cpu()),
+                                   ~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyError: 'embed_amplitude_blend'
+"
+acm,sect_coco_e2e_unified_aptc_acm,ok,0.4009917355371901,0.010878762472197349,0.01091658454078912,0.3901462532734942,0.9362,0.7588,0.8189,-0.53520826446281,-0.7479212375278027,-0.8079834154592108,63.713,
+dblp,sect_coco_e2e_unified_aptc_dblp,ok,0.32585654424451566,0.019119492699320947,0.012259742485565323,0.2536998828020793,0.9369,0.7971,0.8483,-0.6110434557554842,-0.7779805073006791,-0.8360402575144348,288.559,
+pubmed,sect_coco_e2e_unified_aptc_pubmed,ok,0.48252776791601154,0.08339951554019724,0.0769406306605016,0.4679980283494032,0.7617,0.3771,0.4266,-0.2791722320839885,-0.29370048445980274,-0.34965936933949837,165.892,
+texas,sect_coco_e2e_unified_aptc_texas,ok,0.6885245901639344,0.3649128667991365,0.4819522267865784,0.4398413376917274,0.7508,0.4619,0.5324,-0.06227540983606561,-0.0969871332008635,-0.05044777321342159,5.04,
+blogcatalog,sect_coco_e2e_unified_aptc_blogcatalog,ok,0.3044649730561971,0.05675414923515699,0.04808456818979406,0.27746166088867175,0.9172,0.786,0.8163,-0.612735026943803,-0.729245850764843,-0.768215431810206,270.499,

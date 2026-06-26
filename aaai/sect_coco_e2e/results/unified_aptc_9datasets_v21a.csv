@@ -1,0 +1,61 @@
+dataset,candidate,status,acc,nmi,ari,f1,target_acc,target_nmi,target_ari,delta_acc,delta_nmi,delta_ari,runtime_sec,error
+acm,sect_coco_e2e_unified_aptc_acm,error,,,,,,,,,,,,"Traceback (most recent call last):
+  File ""D:\study\graduate_student\papers\AAAI2027\AAAI0622\scripts\run_unified_aptc_9datasets.py"", line 224, in main
+    pred = estimator.fit_predict(dataset.adj, features, graph_features_adj=graph_adj)
+  File ""D:\study\graduate_student\papers\AAAI2027\AAAI0622\core\e2e\sect_coco_e2e.py"", line 1120, in fit_predict
+    loss, diag = model.loss(x, target=target)
+                 ~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File ""D:\study\graduate_student\papers\AAAI2027\AAAI0622\core\e2e\sect_coco_e2e.py"", line 866, in loss
+    ""gate_embed_raw"": float(out[""view_gate_raw""][:, 3].mean().detach().cpu()) if out[""view_gate_raw""].shape[1] > 3 else 0.0,
+                                                                                 ~~~^^^^^^^^^^^^^^^^^
+KeyError: 'view_gate_raw'
+"
+dblp,sect_coco_e2e_unified_aptc_dblp,error,,,,,,,,,,,,"Traceback (most recent call last):
+  File ""D:\study\graduate_student\papers\AAAI2027\AAAI0622\scripts\run_unified_aptc_9datasets.py"", line 224, in main
+    pred = estimator.fit_predict(dataset.adj, features, graph_features_adj=graph_adj)
+  File ""D:\study\graduate_student\papers\AAAI2027\AAAI0622\core\e2e\sect_coco_e2e.py"", line 1120, in fit_predict
+    loss, diag = model.loss(x, target=target)
+                 ~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File ""D:\study\graduate_student\papers\AAAI2027\AAAI0622\core\e2e\sect_coco_e2e.py"", line 866, in loss
+    ""gate_embed_raw"": float(out[""view_gate_raw""][:, 3].mean().detach().cpu()) if out[""view_gate_raw""].shape[1] > 3 else 0.0,
+                                                                                 ~~~^^^^^^^^^^^^^^^^^
+KeyError: 'view_gate_raw'
+"
+pubmed,sect_coco_e2e_unified_aptc_pubmed,error,,,,,,,,,,,,"Traceback (most recent call last):
+  File ""D:\study\graduate_student\papers\AAAI2027\AAAI0622\scripts\run_unified_aptc_9datasets.py"", line 224, in main
+    pred = estimator.fit_predict(dataset.adj, features, graph_features_adj=graph_adj)
+  File ""D:\study\graduate_student\papers\AAAI2027\AAAI0622\core\e2e\sect_coco_e2e.py"", line 1120, in fit_predict
+    loss, diag = model.loss(x, target=target)
+                 ~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File ""D:\study\graduate_student\papers\AAAI2027\AAAI0622\core\e2e\sect_coco_e2e.py"", line 866, in loss
+    ""gate_embed_raw"": float(out[""view_gate_raw""][:, 3].mean().detach().cpu()) if out[""view_gate_raw""].shape[1] > 3 else 0.0,
+                                                                                 ~~~^^^^^^^^^^^^^^^^^
+KeyError: 'view_gate_raw'
+"
+texas,sect_coco_e2e_unified_aptc_texas,error,,,,,,,,,,,,"Traceback (most recent call last):
+  File ""D:\study\graduate_student\papers\AAAI2027\AAAI0622\scripts\run_unified_aptc_9datasets.py"", line 224, in main
+    pred = estimator.fit_predict(dataset.adj, features, graph_features_adj=graph_adj)
+  File ""D:\study\graduate_student\papers\AAAI2027\AAAI0622\core\e2e\sect_coco_e2e.py"", line 1120, in fit_predict
+    loss, diag = model.loss(x, target=target)
+                 ~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File ""D:\study\graduate_student\papers\AAAI2027\AAAI0622\core\e2e\sect_coco_e2e.py"", line 866, in loss
+    ""gate_embed_raw"": float(out[""view_gate_raw""][:, 3].mean().detach().cpu()) if out[""view_gate_raw""].shape[1] > 3 else 0.0,
+                                                                                 ~~~^^^^^^^^^^^^^^^^^
+KeyError: 'view_gate_raw'
+"
+blogcatalog,sect_coco_e2e_unified_aptc_blogcatalog,error,,,,,,,,,,,,"Traceback (most recent call last):
+  File ""D:\study\graduate_student\papers\AAAI2027\AAAI0622\scripts\run_unified_aptc_9datasets.py"", line 224, in main
+    pred = estimator.fit_predict(dataset.adj, features, graph_features_adj=graph_adj)
+  File ""D:\study\graduate_student\papers\AAAI2027\AAAI0622\core\e2e\sect_coco_e2e.py"", line 1120, in fit_predict
+    loss, diag = model.loss(x, target=target)
+                 ~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File ""D:\study\graduate_student\papers\AAAI2027\AAAI0622\core\e2e\sect_coco_e2e.py"", line 866, in loss
+    ""gate_embed_raw"": float(out[""view_gate_raw""][:, 3].mean().detach().cpu()) if out[""view_gate_raw""].shape[1] > 3 else 0.0,
+                                                                                 ~~~^^^^^^^^^^^^^^^^^
+KeyError: 'view_gate_raw'
+"
+acm,sect_coco_e2e_unified_aptc_acm,ok,0.40396694214876033,0.026589950908011747,0.028442168240246663,0.39071263090248465,0.9362,0.7588,0.8189,-0.5322330578512398,-0.7322100490919883,-0.7904578317597533,10.477,
+dblp,sect_coco_e2e_unified_aptc_dblp,ok,0.3487798866157259,0.03782982398123291,0.018053271656201318,0.27814009960325464,0.9369,0.7971,0.8483,-0.5881201133842741,-0.7592701760187671,-0.8302467283437988,18.996,
+pubmed,sect_coco_e2e_unified_aptc_pubmed,ok,0.4689354364254197,0.08273167303540062,0.06934165526506603,0.45583089624007966,0.7617,0.3771,0.4266,-0.29276456357458036,-0.29436832696459936,-0.35725834473493395,10.849,
+texas,sect_coco_e2e_unified_aptc_texas,ok,0.7103825136612022,0.4258341319698072,0.5421713494187983,0.43907881773399016,0.7508,0.4619,0.5324,-0.040417486338797826,-0.036065868030192794,0.009771349418798314,6.424,
+blogcatalog,sect_coco_e2e_unified_aptc_blogcatalog,ok,0.27367205542725176,0.045856399801457504,0.0369628975155277,0.24304339576411585,0.9172,0.786,0.8163,-0.6435279445727482,-0.7401436001985425,-0.7793371024844723,13.52,

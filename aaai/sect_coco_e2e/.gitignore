@@ -1,0 +1,23 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Per-run diagnostics logs — large, regenerable, not version-controlled
+*_diagnostics.jsonl
+*.err
+*.out
+*.log
+
+# Seed-search trial dumps (regenerable)
+seed42_search/
+
+# Local experiment scratch
+*.tmp
+*.cache
+
+# Local data root (datasets are not vendored)
+data/
+
+# Auto-sync working clone (kept outside project, ignored just in case)
+.aaai2027-sync/

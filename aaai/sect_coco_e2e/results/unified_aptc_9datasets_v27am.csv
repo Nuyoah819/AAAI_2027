@@ -1,0 +1,2 @@
+dataset,candidate,status,acc,nmi,ari,f1,target_acc,target_nmi,target_ari,delta_acc,delta_nmi,delta_ari,runtime_sec,error
+wiki,sect_coco_e2e_unified_aptc_wiki,ok,0.28191268191268193,0.2130839309823302,0.08782222474951529,0.25488234863330644,0.644,0.592,0.449,-0.3620873180873181,-0.3789160690176698,-0.3611777752504847,42.175,
