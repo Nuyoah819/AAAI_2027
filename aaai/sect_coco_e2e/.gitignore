@@ -9,6 +9,9 @@ __pycache__/
 *.out
 *.log
 
+# Historical per-version result snapshots (regenerable, kept out of VCS)
+unified_aptc_9datasets_v*.csv
+
 # Seed-search trial dumps (regenerable)
 seed42_search/
 
