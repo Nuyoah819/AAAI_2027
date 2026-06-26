@@ -5331,3 +5331,88 @@ below `v35b`, but the total score is highest and the gains on `Flickr`,
   `PubMed` (`-12.53`), `Wiki` (`-25.19`), `DBLP` (`-26.10`)
 - Biggest bottleneck: `Flickr` (`-54.90`), still the structural
   strong-heterophily large-graph problem.
+
+## 2026-06-26: v38 Fixed Full-Graph PPR View
+
+### Motivation
+
+After repeated `v29`-`v34` experiments, the edge scorer still could not move
+`edge_score_std` away from the same narrow band. The working hypothesis for
+`v38` was therefore architectural rather than supervisory: keep the edge scorer
+unchanged, and add one non-learned full-graph propagation view directly into
+the frontend fusion.
+
+### What changed
+
+`v38` adds a fourth fixed frontend view:
+
+- start from encoder output `z_attr`, not raw `x`
+- use full candidate-graph `edge_prior` as the propagation weight
+- run fixed-hop PPR-style diffusion with `ppr_steps=10` and `ppr_restart=0.15`
+- project the resulting view with a learned `ppr_projector`
+- concatenate it into the frontend embedding with a scalar `ppr_gate`
+
+This is intentionally different from `v34`:
+
+- `v34`: PPR was used as evidence for the edge scorer, and the evidence path
+  collapsed
+- `v38`: PPR bypasses the edge scorer and enters the model as a direct fixed
+  representation view
+
+### Smoke
+
+80-epoch smoke on `acm,dblp,flickr,squirrel`:
+
+| Dataset | v37c smoke | v38 smoke | delta |
+| --- | ---: | ---: | ---: |
+| acm | 69.69 | 83.37 | +13.69 |
+| dblp | n/a | 66.97 | n/a |
+| flickr | 36.20 | 43.84 | +7.64 |
+| squirrel | 30.42 | 30.40 | -0.02 |
+
+All requested smoke thresholds were met, so `v38` was promoted to a full
+260-epoch run.
+
+### Full run
+
+| Dataset | v37c | v38 | d(v38) | SOTA | gap | ppr_gate |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| acm | 79.70 | 85.22 | +5.52 | 93.62 | -8.40 | 0.5036 |
+| dblp | 67.59 | 69.29 | +1.70 | 93.69 | -24.40 | 0.5054 |
+| pubmed | 63.64 | 57.69 | -5.95 | 76.17 | -18.48 | 0.5058 |
+| wiki | 39.63 | 42.74 | +3.12 | 64.82 | -22.08 | 0.5072 |
+| flickr | 28.99 | 32.51 | +3.52 | 83.89 | -51.38 | 0.5078 |
+| blogcatalog | 86.39 | 68.57 | -17.82 | 91.72 | -23.15 | 0.5064 |
+| squirrel | 26.51 | 30.24 | +3.73 | 30.51 | -0.27 | 0.5123 |
+| texas | 70.49 | 69.95 | -0.55 | 74.32 | -4.37 | 0.4924 |
+| chameleon | 34.65 | 34.30 | -0.35 | 35.84 | -1.54 | 0.5202 |
+
+Accumulated ACC:
+
+- `v37c`: `497.60`
+- `v38`: `490.52`
+
+### PPR gate analysis
+
+The most important negative result is that `ppr_gate` did not learn a strong
+dataset-specific shutdown. Across all 9 datasets it stayed very close to `0.5`:
+
+- minimum: `0.4924` (`Texas`)
+- maximum: `0.5202` (`Chameleon`)
+
+That means the PPR view was almost always kept at a medium contribution level,
+including on datasets where it was harmful. So the "let the gate ignore it when
+needed" idea did not materialize in practice.
+
+### Final lock
+
+`v38` is not retained as the final version. It improves `ACM`, `Flickr`,
+`Squirrel`, and `Wiki`, but the regressions on `PubMed` and especially
+`BlogCatalog` are too large, and the 9-dataset accumulated ACC falls below
+`v37c`.
+
+The final locked version therefore remains `v37c`.
+
+The paper-level conclusion is stronger after this negative result: even adding
+a fixed full-graph PPR view does not consistently beat the current best
+combination of embedding-side regularization plus full-space final clustering.

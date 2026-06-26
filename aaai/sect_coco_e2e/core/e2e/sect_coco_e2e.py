@@ -249,6 +249,8 @@ class E2ESECTCoCoConfig:
     subspace_temperature: float = 0.25
     subspace_l1_weight: float = 1e-3
     subspace_max_nodes: int = 2048
+    ppr_steps: int = 10
+    ppr_restart: float = 0.15
     postproc_subspace_margin: float = 1.0
     rayleigh_routing_weight: float = 0.0
     emb_dirichlet_weight: float = 0.15
@@ -949,10 +951,12 @@ class EndToEndSECTCoCoModule(nn.Module):
         self.contraction.quantile_anchor_weight = float(cfg.quantile_threshold_weight)
         self.low_filter_gate = nn.Parameter(torch.tensor(0.65, dtype=torch.float32))
         self.high_filter_gate = nn.Parameter(torch.tensor(0.25, dtype=torch.float32))
+        self.ppr_gate = nn.Parameter(torch.zeros(1, dtype=torch.float32))
         self.highpass_scale_logit = nn.Parameter(torch.tensor(_logit((2.0 - 0.5) / (4.0 - 0.5)), dtype=torch.float32))
         self.raw_leakage_gate = nn.Parameter(torch.tensor(float(cfg.raw_leakage_init), dtype=torch.float32))
+        self.ppr_projector = nn.Linear(cfg.embed_dim, cfg.embed_dim)
         self.projection = nn.Sequential(
-            nn.Linear(cfg.embed_dim * 3, cfg.projection_dim),
+            nn.Linear(cfg.embed_dim * 4, cfg.projection_dim),
             nn.LayerNorm(cfg.projection_dim),
             nn.GELU(),
             nn.Linear(cfg.projection_dim, cfg.projection_dim),
@@ -986,14 +990,23 @@ class EndToEndSECTCoCoModule(nn.Module):
         low_support_weight = ((1.0 - raw_leak_beta) * support_weight + raw_leak_beta * raw_edge_weight).clamp_min(1e-6)
         low_view = self._diffuse(z_attr, low_support_weight, steps=self.cfg.lowpass_steps)
         hetero_view = self._signed_highpass(z_attr, hetero, steps=self.cfg.highpass_steps)
+        ppr_weight = self.edge_prior.to(z_attr.dtype).clamp(1e-6, 1.0)
+        z_ppr = z_attr
+        alpha_ppr = float(self.cfg.ppr_restart)
+        for _ in range(int(self.cfg.ppr_steps)):
+            agg = normalized_spmm(self.edge_index, ppr_weight, z_ppr, self.degree.numel())
+            z_ppr = (1.0 - alpha_ppr) * agg + alpha_ppr * z_attr
+        ppr_view = F.normalize(self.ppr_projector(z_ppr), p=2, dim=1)
         z_cross_alignment = F.cosine_similarity(low_view, hetero_view, dim=1).mean()
         low_gate = torch.sigmoid(self.low_filter_gate)
         high_gate = torch.sigmoid(self.high_filter_gate)
+        ppr_gate = torch.sigmoid(self.ppr_gate)
         fused = torch.cat(
             [
                 z_attr,
                 low_gate * low_view + (1.0 - low_gate) * z_attr,
                 high_gate * hetero_view,
+                ppr_gate * ppr_view,
             ],
             dim=1,
         )
@@ -1006,6 +1019,7 @@ class EndToEndSECTCoCoModule(nn.Module):
             "z_raw": z_raw,
             "low_view": low_view,
             "hetero_view": hetero_view,
+            "ppr_view": ppr_view,
             "z_cross_alignment": z_cross_alignment,
             "embedding": embedding,
             "score": score,
@@ -1019,6 +1033,7 @@ class EndToEndSECTCoCoModule(nn.Module):
             "support_weight": support_weight,
             "low_support_weight": low_support_weight,
             "raw_leak_beta": raw_leak_beta,
+            "ppr_gate": ppr_gate,
             "edge_features": edge_features,
             "evidences": evidences,
         }
@@ -1554,6 +1569,8 @@ class EndToEndSECTCoCoModule(nn.Module):
             "z_cross_alignment": float(out["z_cross_alignment"].detach().cpu()),
             "z_low_norm": float(out["low_view"].norm(dim=1).mean().detach().cpu()),
             "z_high_norm": float(out["hetero_view"].norm(dim=1).mean().detach().cpu()),
+            "z_ppr_norm": float(out["ppr_view"].norm(dim=1).mean().detach().cpu()),
+            "ppr_gate": float(out["ppr_gate"].detach().cpu()),
             "ambiguous_ratio": float(ambiguous_ratio.detach().cpu()),
             "homo_ratio": float(out["homo"].mean().detach().cpu()),
             "hetero_ratio": float(out["hetero"].mean().detach().cpu()),
