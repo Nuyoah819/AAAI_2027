@@ -5712,3 +5712,90 @@ No 260-epoch full run was launched for v41a. The best smoke weight is `0.10`,
 but the result is not safe enough to replace v37c or v40a. The next refinement,
 if pursued, should target teacher refresh stability, such as increasing
 `cluster_update_interval`, rather than increasing teacher weight.
+
+## 2026-06-26: v41b Reduce Teacher Refresh Frequency
+
+### Motivation
+
+`v41a` showed that the KMeans teacher can strongly improve `ACM` and `Flickr`,
+but it also hurt `DBLP` and `Wiki`. The hypothesis for `v41b` was that
+refreshing the teacher every `25` epochs injects too much noisy guidance on
+datasets where `emb_km_acc` is still moderate. Therefore `v41b` changed only
+one number at the runner level:
+
+- `cluster_update_interval: 25 -> 50`
+- if needed, `cluster_update_interval: 25 -> 100`
+- `aptc_init_teacher_weight` stayed at `0.10`
+- no training logic, loss, frontend, or post-processing change
+
+Two runner variants were registered:
+
+- `v41b_50`
+- `v41b_100`
+
+### Smoke: v41b_50
+
+80-epoch smoke on all 9 datasets:
+
+| Dataset | v37c smoke | v41a | v41b_50 | delta vs v37c | init_teacher | proto_sep |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| acm | 70.38 | 82.78 | 82.71 | +12.33 | 0.0067 | 0.6351 |
+| dblp | 66.48 | 63.25 | 62.02 | -4.46 | 0.1914 | 0.3037 |
+| pubmed | 63.21 | 62.09 | 61.21 | -2.00 | 0.1580 | 0.1599 |
+| wiki | 44.78 | 38.54 | 41.00 | -3.78 | 0.2670 | 0.3595 |
+| flickr | 36.81 | 47.42 | 45.41 | +8.60 | 0.0719 | 0.5968 |
+| blogcatalog | 84.60 | 82.56 | 82.87 | -1.73 | 0.1987 | 0.2764 |
+| squirrel | 30.32 | 30.36 | 29.92 | -0.40 | 0.1791 | 0.2526 |
+| texas | 73.77 | 73.77 | 73.77 | +0.00 | 0.6393 | 0.1069 |
+| chameleon | 32.89 | 32.72 | 33.29 | +0.40 | 0.1399 | 0.0558 |
+
+This partially repaired `Wiki` but still failed the safety line:
+
+- `Wiki = 41.00 < 41.78` (`v37c - 3`)
+- `DBLP = 62.02 < 64.48` (`v37c - 2`)
+
+`ACM` remained strong, so the branch was still worth one more interval sweep.
+
+### Smoke: v41b_100
+
+80-epoch smoke on all 9 datasets:
+
+| Dataset | v37c smoke | v41a | v41b_100 | delta vs v37c | init_teacher | proto_sep |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| acm | 70.38 | 82.78 | 82.38 | +12.00 | 0.0024 | 0.6363 |
+| dblp | 66.48 | 63.25 | 59.55 | -6.93 | 0.1736 | 0.2919 |
+| pubmed | 63.21 | 62.09 | 58.57 | -4.64 | 0.1514 | 0.1390 |
+| wiki | 44.78 | 38.54 | 41.50 | -3.28 | 0.2560 | 0.3536 |
+| flickr | 36.81 | 47.42 | 41.97 | +5.16 | 0.0743 | 0.6038 |
+| blogcatalog | 84.60 | 82.56 | 82.95 | -1.65 | 0.1988 | 0.2727 |
+| squirrel | 30.32 | 30.36 | 30.19 | -0.13 | 0.1862 | 0.2252 |
+| texas | 73.77 | 73.77 | 73.77 | +0.00 | 0.6449 | 0.1058 |
+| chameleon | 32.89 | 32.72 | 33.38 | +0.49 | 0.1408 | 0.0588 |
+
+`v41b_100` repaired `Wiki` a bit more, but `DBLP` deteriorated further, so it
+also failed the safety line.
+
+### Notes
+
+Both interval variants intentionally shared the same output stem
+`unified_aptc_9datasets_v41b`, which means the CSV file is appended across
+runs. The diagnostic comparisons above were taken from the per-run terminal
+results and the latest diagnostics snapshot after each run.
+
+### Conclusion
+
+Reducing teacher refresh frequency from `25` to `50` and `100` is not enough to
+resolve the `DBLP` and `Wiki` conflict. The pattern after scanning
+`cluster_update_interval in {25, 50, 100}` is:
+
+- `ACM` remains consistently strong under teacher guidance
+- `Wiki` improves somewhat when refresh is slower
+- `DBLP` keeps regressing, and gets worse at `100`
+
+Therefore no 260-epoch full run was launched for `v41b`. The current conclusion
+is:
+
+- `v41a` remains a valid mechanism proof
+- `v37c` remains the safest retained unified version
+- reducing teacher refresh frequency alone is insufficient to make the KMeans
+  teacher universally safe
