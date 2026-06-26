@@ -968,6 +968,15 @@ def _edge_soft_agreement(q: torch.Tensor, edge_index: torch.Tensor, weight: torc
     return (weight.to(q.dtype) * agree).sum() / weight.to(q.dtype).sum().clamp_min(1e-8)
 
 
+def _local_teacher_row_spmm(edge_index: torch.Tensor, weight: torch.Tensor, x: torch.Tensor, n: int) -> torch.Tensor:
+    src, dst = edge_index
+    w = weight.to(x.dtype).clamp_min(0.0)
+    deg = torch.zeros(n, device=x.device, dtype=x.dtype).scatter_add_(0, dst, w).clamp_min(1e-8)
+    out = torch.zeros_like(x)
+    out.index_add_(0, dst, x[src] * (w / deg[dst]).unsqueeze(1))
+    return out
+
+
 def local_consensus_teacher_target(
     teacher: torch.Tensor,
     edge_index: torch.Tensor,
@@ -991,8 +1000,8 @@ def local_consensus_teacher_target(
     mask_hard = hard.detach() if detach_masks else hard
     pos_mask = (mask_homo + float(hard_weight) * mask_hard).clamp_min(1e-8)
     neg_mask = mask_hetero.clamp_min(1e-8)
-    pos_msg = normalized_spmm(edge_index, pos_mask, t0, degree.numel())
-    neg_msg = normalized_spmm(edge_index, neg_mask, t0, degree.numel())
+    pos_msg = _local_teacher_row_spmm(edge_index, pos_mask, t0, degree.numel())
+    neg_msg = _local_teacher_row_spmm(edge_index, neg_mask, t0, degree.numel())
     if bool(use_prior_uniform):
         prior_ref = torch.full_like(t0, 1.0 / float(t0.shape[1]))
         neg_term = prior_ref - neg_msg
