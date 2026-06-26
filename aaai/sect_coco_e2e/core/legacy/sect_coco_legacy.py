@@ -668,6 +668,7 @@ def _subspace_refine(model: SECTCoCo, cfg: SECTCoCoConfig, device: torch.device)
         alpha2=float(cfg.extras.get("head_alpha2", 5e-5)),
         gamma=float(cfg.extras.get("head_gamma", 0.005)),
         filter_coef=cfg.extras.get("head_filter_coef", 0.1),
+        return_k_rank=bool(cfg.extras.get("head_return_k_rank", False)),
         seed=int(cfg.seed),
         device=device,
     )
@@ -957,6 +958,7 @@ class _AnchorSubspaceHead:
         alpha2: float,
         gamma: float,
         filter_coef,
+        return_k_rank: bool,
         seed: int,
         device: torch.device,
     ):
@@ -968,6 +970,7 @@ class _AnchorSubspaceHead:
         self.alpha2 = float(alpha2)
         self.gamma = float(gamma)
         self.filter_coef = filter_coef
+        self.return_k_rank = bool(return_k_rank)
         self.seed = int(seed)
         self.device = device
 
@@ -985,6 +988,8 @@ class _AnchorSubspaceHead:
         emb = self._solve_irls(h, lap, idx)
         z = self._square_feat_map(emb)
         u, _, _ = torch.linalg.svd(z, full_matrices=False)
+        if self.return_k_rank:
+            return u[:, 1 : min(self.k_rank + 1, u.shape[1])]
         return u[:, 1 : self.n_clusters + 1]
 
     def _eye(self, n: int) -> torch.Tensor:

@@ -251,6 +251,7 @@ class E2ESECTCoCoConfig:
     subspace_l1_weight: float = 1e-3
     subspace_max_nodes: int = 2048
     postproc_subspace_margin: float = 1.0
+    subspace_sil_threshold: float = 0.15
     rayleigh_routing_weight: float = 0.0
     emb_dirichlet_weight: float = 0.15
     zattr_dirichlet_weight: float = 0.05
@@ -2016,6 +2017,8 @@ class E2ESECTCoCo:
             _postproc_choice = "aptc_fallback"
             _sil_full = -2.0
             _sil_sub = -2.0
+            _sil_best_sub = -2.0
+            _adaptive_sub_dim = 0
             _postproc_error = ""
             try:
                 from sklearn.preprocessing import normalize as _sk_norm
@@ -2058,9 +2061,10 @@ class E2ESECTCoCo:
                 labels = out["q_refined"].argmax(dim=1).detach().cpu().numpy().astype(np.int64)
             _legacy_head_used = False
             _legacy_head_error = ""
-            if str(cfg.final_label_mode).lower() in {"legacy_subspace_refine", "subspace_refine_head"}:
+            _label_mode = str(cfg.final_label_mode).lower()
+            if _label_mode in {"legacy_subspace_refine", "subspace_refine_head", "adaptive_legacy_subspace"}:
                 try:
-                    labels, emb = run_legacy_subspace_refine_head(
+                    _legacy_labels, _legacy_emb = run_legacy_subspace_refine_head(
                         cfg,
                         adj=adj,
                         features=features,
@@ -2075,7 +2079,22 @@ class E2ESECTCoCo:
                         n_clusters=self.n_clusters,
                         device=device,
                     )
-                    _postproc_choice = "legacy_subspace_refine"
+                    if _label_mode == "adaptive_legacy_subspace":
+                        labels, emb, _adaptive_stats = adaptive_subspace_kmeans_labels(
+                            base_embedding=emb,
+                            subspace_embedding=_legacy_emb,
+                            n_clusters=self.n_clusters,
+                            cfg=cfg,
+                        )
+                        _postproc_choice = str(_adaptive_stats["choice"])
+                        _sil_full = float(_adaptive_stats["sil_full"])
+                        _sil_best_sub = float(_adaptive_stats["sil_best_sub"])
+                        _sil_sub = _sil_best_sub
+                        _adaptive_sub_dim = int(_adaptive_stats["best_dim"])
+                        _sub_dim = int(_adaptive_stats["best_dim"])
+                    else:
+                        labels, emb = _legacy_labels, _legacy_emb
+                        _postproc_choice = "legacy_subspace_refine"
                     _legacy_head_used = True
                 except Exception as _e:
                     _legacy_head_error = repr(_e)
@@ -2094,9 +2113,11 @@ class E2ESECTCoCo:
             **frontend_diag,
         }
         self.diagnostics_["selected_sub_dim"] = int(_sub_dim) if "_sub_dim" in locals() else 0
+        self.diagnostics_["adaptive_sub_dim"] = int(_adaptive_sub_dim) if "_adaptive_sub_dim" in locals() else 0
         self.diagnostics_["postproc_choice"] = _postproc_choice if "_postproc_choice" in locals() else "unknown"
         self.diagnostics_["sil_full"] = float(_sil_full) if "_sil_full" in locals() else -2.0
         self.diagnostics_["sil_sub"] = float(_sil_sub) if "_sil_sub" in locals() else -2.0
+        self.diagnostics_["sil_best_sub"] = float(_sil_best_sub) if "_sil_best_sub" in locals() else -2.0
         self.diagnostics_["postproc_error"] = _postproc_error if "_postproc_error" in locals() else ""
         self.diagnostics_["legacy_head_used"] = bool(_legacy_head_used) if "_legacy_head_used" in locals() else False
         self.diagnostics_["legacy_head_error"] = _legacy_head_error if "_legacy_head_error" in locals() else ""
@@ -2184,6 +2205,74 @@ def run_legacy_subspace_refine_head(
     )
     labels = legacy_subspace_refine(adapter, legacy_cfg, device)
     return labels.astype(np.int64), np.asarray(adapter.embedding_, dtype=np.float32)
+
+
+def adaptive_subspace_kmeans_labels(
+    *,
+    base_embedding: np.ndarray,
+    subspace_embedding: np.ndarray,
+    n_clusters: int,
+    cfg: E2ESECTCoCoConfig,
+) -> tuple[np.ndarray, np.ndarray, dict[str, float | int | str]]:
+    from sklearn.metrics import silhouette_score
+
+    base = normalize(np.nan_to_num(np.asarray(base_embedding, dtype=np.float32)), norm="l2", axis=1)
+    sub = normalize(np.nan_to_num(np.asarray(subspace_embedding, dtype=np.float32)), norm="l2", axis=1)
+    n = int(base.shape[0])
+    k = int(n_clusters)
+    n_init = min(int(cfg.kmeans_n_init), 40)
+    rng = np.random.default_rng(int(cfg.seed))
+    sil_n = min(3000, n)
+    idx = rng.choice(n, sil_n, replace=False) if n > sil_n else np.arange(n)
+
+    km_full = KMeans(n_clusters=k, n_init=n_init, random_state=int(cfg.seed), max_iter=300)
+    lab_full = km_full.fit_predict(base).astype(np.int64)
+    sil_full = -1.0
+    if len(np.unique(lab_full[idx])) >= 2:
+        sil_full = float(silhouette_score(base[idx], lab_full[idx]))
+
+    max_dim = max(1, min(sub.shape[0] - 1, sub.shape[1]))
+    scan_dims = sorted({d for d in (k, 2 * k, 3 * k, 4 * k, 5 * k) if 1 <= d <= max_dim})
+    if not scan_dims:
+        return lab_full, base.astype(np.float32), {
+            "choice": "full_kmeans",
+            "sil_full": float(sil_full),
+            "sil_best_sub": -2.0,
+            "best_dim": 0,
+        }
+
+    _, _, vt = np.linalg.svd(sub, full_matrices=False)
+    best_dim = 0
+    best_sil = -2.0
+    best_labels: np.ndarray | None = None
+    best_z: np.ndarray | None = None
+    for dim in scan_dims:
+        z_dim = normalize(np.nan_to_num(sub @ vt[:dim].T), norm="l2", axis=1)
+        km_dim = KMeans(n_clusters=k, n_init=n_init, random_state=int(cfg.seed), max_iter=200)
+        labels_dim = km_dim.fit_predict(z_dim).astype(np.int64)
+        if len(np.unique(labels_dim[idx])) < 2:
+            continue
+        sil = float(silhouette_score(base[idx], labels_dim[idx]))
+        if sil > best_sil:
+            best_sil = sil
+            best_dim = int(dim)
+            best_labels = labels_dim
+            best_z = z_dim.astype(np.float32)
+
+    threshold = float(cfg.subspace_sil_threshold)
+    if best_labels is not None and best_z is not None and best_sil > threshold:
+        return best_labels.astype(np.int64), best_z, {
+            "choice": f"subspace_{best_dim}",
+            "sil_full": float(sil_full),
+            "sil_best_sub": float(best_sil),
+            "best_dim": int(best_dim),
+        }
+    return lab_full, base.astype(np.float32), {
+        "choice": "full_kmeans",
+        "sil_full": float(sil_full),
+        "sil_best_sub": float(best_sil),
+        "best_dim": int(best_dim),
+    }
 
 
 def e2e_to_legacy_subspace_config(cfg: E2ESECTCoCoConfig) -> SECTCoCoConfig:

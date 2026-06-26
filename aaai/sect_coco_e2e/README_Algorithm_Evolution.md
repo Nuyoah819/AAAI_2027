@@ -5565,3 +5565,79 @@ replacement because it badly damages `Texas` and hurts `Chameleon`, `Squirrel`,
 and `Flickr`. The next useful step is `v40b`: design an unsupervised selector
 or confidence gate between v37c full-KMeans and v40a legacy subspace head,
 without using dataset-specific routing.
+
+## 2026-06-26: v40b Adaptive Legacy Subspace Dimension
+
+### Goal
+
+`v40b` tested whether the legacy subspace head could be made harmless on
+heterophily-heavy graphs without adding a path selector between v37c and v40a.
+The implementation kept one unified backend and changed the subspace head
+itself:
+
+- legacy `_subspace_refine` can optionally return a higher-rank representation
+  via `head_return_k_rank`
+- v40b sets `head_k_rank=50` and scans dimensions `K, 2K, 3K, 4K, 5K`
+- each candidate is clustered with KMeans
+- silhouette is computed on the high-dimensional E2E embedding
+- if the best subspace silhouette clears a global absolute threshold, v40b uses
+  that subspace; otherwise it falls back to full KMeans
+
+This avoids dataset-specific routing, but it is still a behavioral gate inside
+the legacy subspace backend.
+
+### Smoke results
+
+Three threshold settings were tested.
+
+`threshold=0.15` was too strict and selected `full_kmeans` for every dataset:
+
+| Dataset | choice | sil_best_sub | sil_full | ACC |
+| --- | --- | ---: | ---: | ---: |
+| acm | full_kmeans | 0.1172 | 0.3729 | 71.34 |
+| dblp | full_kmeans | 0.0374 | 0.1510 | 66.06 |
+| blogcatalog | full_kmeans | 0.1434 | 0.1726 | 84.93 |
+| squirrel | full_kmeans | -0.0147 | 0.0380 | 30.30 |
+| texas | full_kmeans | -0.0050 | 0.2202 | 73.77 |
+
+`threshold=0.03` restored ACM/DBLP gains, but Texas and Chameleon entered the
+subspace path and regressed badly:
+
+| Dataset | choice | sil_best_sub | sil_full | ACC |
+| --- | --- | ---: | ---: | ---: |
+| acm | subspace_15 | 0.1086 | 0.3752 | 85.55 |
+| dblp | subspace_20 | 0.0365 | 0.1508 | 86.94 |
+| blogcatalog | subspace_24 | 0.1436 | 0.1743 | 87.30 |
+| squirrel | full_kmeans | -0.0126 | 0.0380 | 30.38 |
+| texas | subspace_15 | 0.0306 | 0.2221 | 40.98 |
+| chameleon | subspace_5 | 0.0739 | 0.1118 | 31.93 |
+
+Following the rule for Texas, the threshold was raised to `0.20`. This protected
+Texas/Squirrel/Chameleon, but again disabled the useful ACM/DBLP subspace path:
+
+| Dataset | choice | sil_best_sub | sil_full | ACC |
+| --- | --- | ---: | ---: | ---: |
+| acm | full_kmeans | 0.1265 | 0.3812 | 70.98 |
+| dblp | full_kmeans | 0.0423 | 0.1514 | 66.40 |
+| blogcatalog | full_kmeans | 0.1446 | 0.1734 | 84.60 |
+| squirrel | full_kmeans | -0.0147 | 0.0384 | 30.32 |
+| texas | full_kmeans | 0.0161 | 0.2203 | 73.77 |
+| chameleon | full_kmeans | 0.0683 | 0.1054 | 32.89 |
+
+### Conclusion
+
+`v40b` did not meet the smoke criteria and was not promoted to a 260-epoch full
+run. The single absolute silhouette threshold cannot simultaneously:
+
+- keep ACM/DBLP/BlogCatalog on the beneficial subspace path
+- keep Texas/Chameleon off the harmful subspace path
+- preserve all datasets within the v37c safety margin
+
+The important diagnostic is that DBLP's good subspace path has very low
+absolute silhouette (`~0.04`), while Texas can have a similarly low but still
+harmful positive silhouette (`~0.03`). Therefore absolute silhouette alone is
+not a reliable unified reliability signal for this backend.
+
+The final retained result remains `v40a` as a breakthrough mechanism, with the
+caveat that always-on legacy subspace is not yet safe enough to replace v37c as
+a universal final version.
