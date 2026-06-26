@@ -5641,3 +5641,74 @@ not a reliable unified reliability signal for this backend.
 The final retained result remains `v40a` as a breakthrough mechanism, with the
 caveat that always-on legacy subspace is not yet safe enough to replace v37c as
 a universal final version.
+
+## 2026-06-26: v41a KMeans Teacher Guidance
+
+### Motivation
+
+The APTC path already had an initialization teacher loss, but it had effectively
+been disabled through `aptc_init_teacher_weight=0.0`. That meant the Sinkhorn
+prototype assignment had no direct KMeans-style teacher signal during training,
+even though final full-space KMeans repeatedly outperformed APTC argmax.
+
+`v41a` changed only this mechanism:
+
+- dataclass default `aptc_init_teacher_weight: 0.0 -> 0.10`
+- runner variant `v41a` inherits `v28b` and overrides
+  `aptc_init_teacher_weight=0.10`
+- no frontend, loss-structure, runner behavior, or dataset branch changes
+
+### Smoke
+
+80-epoch smoke on all 9 datasets:
+
+| Dataset | v37c smoke | v41a | delta | init_teacher | proto_sep |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| acm | 70.38 | 82.78 | +12.40 | 0.0038 | 0.6336 |
+| dblp | 66.48 | 63.25 | -3.23 | 0.2059 | 0.3041 |
+| pubmed | 63.21 | 62.09 | -1.12 | 0.1588 | 0.1795 |
+| wiki | 44.78 | 38.54 | -6.24 | 0.2735 | 0.3648 |
+| flickr | 36.81 | 47.42 | +10.61 | 0.0416 | 0.5919 |
+| blogcatalog | 84.60 | 82.56 | -2.04 | 0.1989 | 0.2733 |
+| squirrel | 30.32 | 30.36 | +0.04 | 0.1570 | 0.2332 |
+| texas | 73.77 | 73.77 | +0.00 | 0.6486 | 0.1097 |
+| chameleon | 32.89 | 32.72 | -0.17 | 0.1381 | 0.0480 |
+
+The teacher loss was non-zero on every dataset, so the mechanism was genuinely
+active. Prototype separation also rose well above the `0.05` target on most
+datasets, except `Chameleon` (`0.0480`).
+
+### Weight sweep
+
+Because v41a improved ACM/Flickr but regressed Wiki and DBLP, two weight-only
+variants were tested.
+
+| Dataset | v41a_low 0.05 | v41a 0.10 | v41a_high 0.20 |
+| --- | ---: | ---: | ---: |
+| acm | 64.83 | 82.78 | 81.16 |
+| dblp | 65.76 | 63.25 | 60.78 |
+| pubmed | 62.77 | 62.09 | 59.47 |
+| wiki | 40.79 | 38.54 | 39.00 |
+| flickr | 41.08 | 47.42 | 43.80 |
+| blogcatalog | 83.60 | 82.56 | 80.68 |
+| squirrel | 30.51 | 30.36 | 30.38 |
+| texas | 73.77 | 73.77 | 74.32 |
+| chameleon | 32.37 | 32.72 | 32.76 |
+
+Smoke accumulated ACC:
+
+- `v41a_low`: `495.48`
+- `v41a`: `513.49`
+- `v41a_high`: `502.35`
+
+### Conclusion
+
+`v41a` validates that the KMeans teacher is not a dead mechanism: it strongly
+improves ACM and Flickr and produces non-zero teacher loss. However, it fails
+the smoke safety gate because `Wiki` drops by more than `5` points from the
+v37c smoke baseline, and DBLP also regresses.
+
+No 260-epoch full run was launched for v41a. The best smoke weight is `0.10`,
+but the result is not safe enough to replace v37c or v40a. The next refinement,
+if pursued, should target teacher refresh stability, such as increasing
+`cluster_update_interval`, rather than increasing teacher weight.

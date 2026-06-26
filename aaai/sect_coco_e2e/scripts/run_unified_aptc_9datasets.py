@@ -3049,6 +3049,28 @@ EXPERIMENT_VARIANTS = {
     },
 }
 
+EXPERIMENT_VARIANTS["v41a"] = {
+    "output_stem": "unified_aptc_9datasets_v41a",
+    "overrides": {
+        **EXPERIMENT_VARIANTS["v28b"]["overrides"],
+        "aptc_init_teacher_weight": 0.10,
+    },
+}
+EXPERIMENT_VARIANTS["v41a_low"] = {
+    "output_stem": "unified_aptc_9datasets_v41a_low",
+    "overrides": {
+        **EXPERIMENT_VARIANTS["v28b"]["overrides"],
+        "aptc_init_teacher_weight": 0.05,
+    },
+}
+EXPERIMENT_VARIANTS["v41a_high"] = {
+    "output_stem": "unified_aptc_9datasets_v41a_high",
+    "overrides": {
+        **EXPERIMENT_VARIANTS["v28b"]["overrides"],
+        "aptc_init_teacher_weight": 0.20,
+    },
+}
+
 REMOVED_BACKEND_KEYS = {
     "final_label_mode",
     "head",

@@ -193,7 +193,7 @@ class E2ESECTCoCoConfig:
     aptc_embedding_gate_warmup_epochs: int = 0
     aptc_embedding_gate_ramp_epochs: int = 1
     aptc_embed_consistency_graph_gate: bool = False
-    aptc_init_teacher_weight: float = 0.0
+    aptc_init_teacher_weight: float = 0.10
     aptc_proto_readout_weight: float = 0.0
     aptc_proto_readout_temperature: float = 0.20
     aptc_proto_readout_conf_power: float = 1.0
