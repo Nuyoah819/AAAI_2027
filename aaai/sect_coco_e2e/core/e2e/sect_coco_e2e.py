@@ -200,6 +200,7 @@ class E2ESECTCoCoConfig:
     aptc_teacher_conf_center_mode: str = "fixed"
     aptc_teacher_conf_quantile: float = 0.65
     aptc_teacher_conf_min_scale: float = 0.05
+    aptc_teacher_reliability_mode: str = "prob"
     aptc_proto_readout_weight: float = 0.0
     aptc_proto_readout_temperature: float = 0.20
     aptc_proto_readout_conf_power: float = 1.0
@@ -1242,15 +1243,28 @@ class EndToEndSECTCoCoModule(nn.Module):
         cluster_loss = F.kl_div(q_cluster.clamp_min(1e-8).log(), target, reduction="batchmean")
         transport_loss = F.kl_div(q_reg.clamp_min(1e-8).log(), out["q_transport"].detach(), reduction="batchmean")
         teacher_conf = q_reg.new_zeros(q_reg.shape[0])
+        teacher_margin = q_reg.new_zeros(q_reg.shape[0])
         conf_weight = q_reg.new_zeros(q_reg.shape[0])
         conf_floor = float(cfg.aptc_teacher_conf_floor)
         teacher_conf_center = q_reg.new_tensor(float(cfg.aptc_teacher_conf_center))
         teacher_conf_scale = q_reg.new_tensor(max(1.0 - float(cfg.aptc_teacher_conf_center), 1e-8))
+        teacher_reliability_mode_id = 0.0
         if self.init_teacher.numel() == q_reg.numel():
             teacher = self.init_teacher.detach().clamp_min(1e-8)
             q_log = q_reg.clamp_min(1e-8).log()
             per_node_kl = F.kl_div(q_log, teacher, reduction="none").sum(dim=1)
-            teacher_conf = teacher.max(dim=1).values.detach()
+            topk = torch.topk(teacher, k=min(2, teacher.shape[1]), dim=1).values.detach()
+            teacher_prob = topk[:, 0]
+            if topk.shape[1] > 1:
+                teacher_margin = (topk[:, 0] - topk[:, 1]).clamp_min(0.0)
+            else:
+                teacher_margin = teacher_prob
+            reliability_mode = str(getattr(cfg, "aptc_teacher_reliability_mode", "prob")).lower()
+            if reliability_mode == "margin":
+                teacher_conf = teacher_margin.detach()
+                teacher_reliability_mode_id = 1.0
+            else:
+                teacher_conf = teacher_prob.detach()
             conf_center = float(cfg.aptc_teacher_conf_center)
             conf_power = max(1e-4, float(cfg.aptc_teacher_conf_power))
             conf_mode = str(getattr(cfg, "aptc_teacher_conf_center_mode", "fixed")).lower()
@@ -1499,6 +1513,9 @@ class EndToEndSECTCoCoModule(nn.Module):
             "cluster": float(cluster_loss.detach().cpu()),
             "transport": float(transport_loss.detach().cpu()),
             "init_teacher": float(init_teacher_loss.detach().cpu()),
+            "teacher_reliability_mode_id": teacher_reliability_mode_id,
+            "teacher_margin_mean": float(teacher_margin.mean().detach().cpu()),
+            "teacher_margin_std": float(teacher_margin.std(unbiased=False).detach().cpu()),
             "teacher_conf_mean": float(teacher_conf.mean().detach().cpu()),
             "teacher_conf_std": float(teacher_conf.std(unbiased=False).detach().cpu()),
             "teacher_conf_center": float(teacher_conf_center.detach().cpu()),

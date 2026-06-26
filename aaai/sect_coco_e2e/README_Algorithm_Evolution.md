@@ -6031,3 +6031,159 @@ A margin score should better identify nodes whose teacher assignment is
 actually decisive. This remains unified and dataset-agnostic, and it should be
 implemented as a one-line confidence-source swap inside the existing teacher
 weighting block rather than as a new head or routing mechanism.
+
+## 2026-06-26: v41e Margin-Based Teacher Reliability
+
+### Hypothesis
+
+`v41d` fixed the shape problem in confidence-weighted teacher supervision:
+`teacher_weight_active_ratio` recovered from the near-zero `v41c` regime to
+healthy graph-relative active ratios. But DBLP still did not improve. This
+suggested that the reliability source itself was weak: `max_k teacher[i, k]`
+can be high even when the best cluster is only slightly better than the second
+best cluster.
+
+`v41e` keeps the v41d adaptive weighting framework and changes only the
+teacher-reliability source:
+
+```text
+teacher_margin = top1(teacher) - top2(teacher)
+teacher_conf = teacher_margin
+```
+
+The intended effect is to emphasize teacher nodes whose assignment is decisive,
+not merely high in absolute top-1 probability.
+
+### Implementation
+
+The implementation is local to `core/e2e/sect_coco_e2e.py`:
+
+- added `aptc_teacher_reliability_mode`, defaulting to `prob`;
+- for `margin`, compute `torch.topk(teacher, k=2)` and use `top1 - top2` as
+  `teacher_conf`;
+- reused the existing v41d adaptive quantile center, floor, power, and weighted
+  KL loss;
+- added diagnostics `teacher_reliability_mode_id`, `teacher_margin_mean`, and
+  `teacher_margin_std`;
+- kept previous `prob` behavior as the default, so v41c/v41d variants remain
+  unchanged.
+
+No dataset-specific branch, new head, clustering backend, or assignment switch
+was introduced.
+
+### Variants
+
+- `v41e`: margin reliability, quantile `0.65`, floor `0.10`, power `2.0`.
+- `v41e_soft`: margin reliability, quantile `0.55`, floor `0.15`, power `1.5`.
+- `v41e_sharp`: margin reliability, quantile `0.75`, floor `0.08`, power `2.5`.
+
+The experiments were run sequentially. Each smoke was diagnosed before deciding
+whether to run the next fallback.
+
+### 80-epoch smoke results
+
+ACC/NMI/ARI are percentages.
+
+| Dataset | v41e ACC/NMI/ARI | v41e_soft ACC/NMI/ARI | v41e_sharp ACC/NMI/ARI |
+| --- | ---: | ---: | ---: |
+| acm | 82.71 / 52.09 / 56.37 | 82.05 / 50.77 / 54.91 | 82.91 / 52.58 / 56.80 |
+| dblp | 62.78 / 31.10 / 27.33 | 62.21 / 31.22 / 26.50 | 63.59 / 32.68 / 28.31 |
+| pubmed | 61.40 / 22.30 / 21.54 | 60.97 / 22.01 / 21.30 | 62.10 / 23.26 / 22.48 |
+| wiki | 40.91 / 37.88 / 19.59 | 39.42 / 35.53 / 18.94 | 40.12 / 36.60 / 18.00 |
+| flickr | 50.14 / 36.80 / 25.61 | 48.51 / 33.94 / 23.77 | 50.32 / 35.33 / 25.53 |
+| blogcatalog | 83.60 / 63.75 / 64.81 | 82.85 / 62.74 / 63.26 | 82.26 / 61.98 / 62.06 |
+| squirrel | 30.26 / 6.43 / 5.27 | 30.32 / 6.54 / 5.39 | 30.28 / 6.44 / 5.28 |
+| texas | 73.77 / 49.44 / 61.09 | 73.77 / 50.23 / 61.94 | 73.77 / 49.44 / 61.09 |
+| chameleon | 33.20 / 14.85 / 5.93 | 32.59 / 14.17 / 5.30 | 33.16 / 15.17 / 6.15 |
+
+Smoke accumulated ACC:
+
+- `v41e`: `518.78`
+- `v41e_soft`: `512.70`
+- `v41e_sharp`: `518.52`
+
+### Diagnostics table
+
+The required comparison table below reports `v41e` base diagnostics. Fallback
+variants are summarized in the following table.
+
+| Dataset | v37c_smoke | v41c | v41d | v41e | delta_vs_v41c | delta_vs_v41d | teacher_margin_mean | teacher_margin_std | teacher_weight_active_ratio | prototype_separation |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| acm | 70.38 | 82.91 | 82.58 | 82.71 | -0.20 | +0.13 | 0.0400 | 0.0186 | 0.3488 | 0.6341 |
+| dblp | 66.48 | 63.22 | 63.00 | 62.78 | -0.44 | -0.22 | 0.1565 | 0.0488 | 0.3488 | 0.3057 |
+| pubmed | 63.21 | 62.00 | 62.11 | 61.40 | -0.60 | -0.71 | 0.1306 | 0.0472 | 0.3488 | 0.1721 |
+| wiki | 44.78 | 42.70 | 42.58 | 40.91 | -1.79 | -1.67 | 0.0070 | 0.0063 | 0.3472 | 0.3625 |
+| flickr | 36.81 | 46.94 | 43.39 | 50.14 | +3.20 | +6.75 | 0.0076 | 0.0058 | 0.3476 | 0.5932 |
+| blogcatalog | 84.60 | 82.62 | 81.62 | 83.60 | +0.98 | +1.98 | 0.0136 | 0.0107 | 0.3483 | 0.2733 |
+| squirrel | 30.32 | 30.44 | 21.19 | 30.26 | -0.18 | +9.07 | 0.0308 | 0.0641 | 0.3434 | 0.2092 |
+| texas | 73.77 | 73.22 | 73.77 | 73.77 | +0.55 | +0.00 | 0.1216 | 0.0715 | 0.3497 | 0.1184 |
+| chameleon | 32.89 | 32.94 | 33.16 | 33.20 | +0.26 | +0.04 | 0.0680 | 0.1002 | 0.3452 | 0.0584 |
+
+| Dataset | v41e_soft | v41e_sharp | soft_active | sharp_active | sharp_margin_mean | sharp_conf_scale |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| acm | 82.05 | 82.91 | 0.4499 | 0.2460 | 0.0400 | 0.0500 |
+| dblp | 62.21 | 63.59 | 0.4496 | 0.2455 | 0.1565 | 0.1608 |
+| pubmed | 60.97 | 62.10 | 0.4499 | 0.2463 | 0.1306 | 0.1249 |
+| wiki | 39.42 | 40.12 | 0.4499 | 0.2407 | 0.0070 | 0.0500 |
+| flickr | 48.51 | 50.32 | 0.4498 | 0.2407 | 0.0076 | 0.0500 |
+| blogcatalog | 82.85 | 82.26 | 0.4498 | 0.2448 | 0.0136 | 0.0500 |
+| squirrel | 30.32 | 30.28 | 0.4482 | 0.2301 | 0.0308 | 0.2908 |
+| texas | 73.77 | 73.77 | 0.4481 | 0.2404 | 0.1216 | 0.1623 |
+| chameleon | 32.59 | 33.16 | 0.4493 | 0.2437 | 0.0680 | 0.2866 |
+
+### Diagnostics interpretation
+
+Margin reliability behaved as designed mechanically. The reliability mode id was
+`1.0` for all v41e runs, and the active-ratio bands matched the intended
+fallback ladder:
+
+- base `v41e`: about `0.34` to `0.35`;
+- `v41e_soft`: about `0.45`;
+- `v41e_sharp`: about `0.23` to `0.25`.
+
+DBLP's margin distribution was not collapsed (`teacher_margin_mean=0.1565`,
+`teacher_margin_std=0.0488`), and the sharp variant improved DBLP from `62.78`
+to `63.59`. That is a real directional gain over base margin weighting and over
+`v41d`, but it is still below the full gate and below the safer v37c smoke
+baseline. The result says margin is a better reliability signal than top-1
+probability for DBLP, but scalar posterior-shape reliability alone is not enough
+to identify teacher nodes that improve the conflict pair.
+
+Wiki is the counter-signal. Wiki has an extremely small margin
+(`teacher_margin_mean=0.0070`), meaning its teacher assignments are almost tied.
+The adaptive quantile still selects a graph-relative active set, but this does
+not make the selected teacher nodes semantically trustworthy. Soft weighting
+lets too many low-margin teacher nodes in and drops Wiki below `40`; sharp
+weighting filters more strongly but still leaves Wiki at only `40.12`.
+
+### Decision: no full
+
+No 260-epoch full run was launched.
+
+The best DBLP result was `v41e_sharp` at `63.59`, which is better than the base
+v41e and v41d but still below the required `64.5`. Wiki also stayed below the
+preferred `42` line for all v41e variants. Therefore no v41e candidate satisfies
+the full-run gate.
+
+### Next recommended direction
+
+Do not continue tuning scalar confidence curves for v41f. The v41c/v41d/v41e
+sequence now shows:
+
+- top-1 probability confidence can be active but is not semantically reliable;
+- adaptive quantile weighting fixes active ratio but not DBLP;
+- margin reliability improves DBLP only under sharp filtering and harms Wiki.
+
+The next single minimal hypothesis should change the teacher reliability source
+from posterior-shape-only to agreement-aware reliability:
+
+```text
+teacher_reliability = margin(teacher) * agreement(teacher_label, embedding_knn_labels)
+```
+
+This would still be unified and dataset-agnostic if computed from the current
+graph/embedding only. The purpose would be to test whether KMeans teacher nodes
+are reliable when their assigned cluster is also supported by local embedding
+neighborhood consensus. This should be implemented, if pursued, as a reliability
+source swap inside the same teacher-weighting block, not as a new clustering
+head or dataset-specific selector.
