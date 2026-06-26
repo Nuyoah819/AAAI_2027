@@ -5461,3 +5461,107 @@ diffusion depth as the front-end bottleneck. The small gains on `ACM` and
 
 The final locked version remains `v37c`, and the next direction should be the
 planned `v40` assignment-mechanism audit rather than deeper low-pass diffusion.
+
+## 2026-06-26: v40 AAAI0617 Backend Audit and Legacy Subspace Integration
+
+### AAAI0617 backend analysis
+
+The AAAI0617 multi-head code routes final labels through dataset-selected
+backends after E2E training:
+
+- `subspace_refine`: calls the legacy `_subspace_refine` final head on an
+  adapter containing the E2E embedding, raw graph, denoised graph, and feature
+  views.
+- `legacy_sect_bridge`: bypasses the E2E embedding at final-label time and runs
+  the full legacy `SECTCoCo.fit_predict` pipeline, optionally with
+  `head=subspace_refine`.
+
+The successful ACM backend is not a new loss or Student-t assignment variant.
+It is an ELSS-style anchor subspace head:
+
+- choose input representation via `head_input` (`original`, `base`, `concat`,
+  or E2E embedding)
+- choose graph via `head_graph` (`original_elss`, `homo_elss`, or denoised)
+- build ELSS-normalized graph with self-loops
+- run `_AnchorSubspaceHead` with anchor count, rank, power, `d`, `alpha2`,
+  `gamma`, and optional filter coefficient
+- L2/PCA-normalize the resulting low-rank `q`
+- finish with KMeans
+
+The successful DBLP backend is broader: `legacy_sect_bridge` runs the old
+SECT-CoCo feature pipeline before using the same kind of subspace head. Its
+advantage is therefore not a single Student-t replacement, but the combination
+of legacy edge-teacher feature construction plus anchor subspace refinement.
+
+### Integrability
+
+Directly restoring AAAI0617's per-dataset routing would violate the unified
+pipeline goal. The smallest acceptable integration is to expose one unified
+optional final backend in the current E2E model:
+
+- keep the current v37c frontend/APTC training unchanged
+- after training, pack current embedding, raw graph, denoised support graph,
+  and homophily graph into a legacy-head adapter
+- call legacy `_subspace_refine`
+- record `postproc_choice=legacy_subspace_refine`
+
+This tests whether the reusable component is the anchor subspace/ELSS final
+backend rather than the old dataset-specific multi-head router.
+
+### v40a: unified legacy_subspace_refine backend
+
+`v40a` adds a unified variant that enables `final_label_mode=legacy_subspace_refine`
+for all datasets with:
+
+- `head_input=concat`
+- `head_graph=original_elss`
+- `head_power=2`
+- `head_d=0.875`
+- `head_alpha2=5e-5`
+- `head_gamma=0.003`
+- `head_q_norm=l2`
+- `head_kmeans_n_init=100`
+
+80-epoch smoke on `acm,dblp,flickr,squirrel`:
+
+| Dataset | v40a smoke | postproc_choice |
+| --- | ---: | --- |
+| acm | 92.40 | legacy_subspace_refine |
+| dblp | 92.95 | legacy_subspace_refine |
+| flickr | 33.97 | legacy_subspace_refine |
+| squirrel | 25.03 | legacy_subspace_refine |
+
+The smoke confirms the key mechanism: ACM/DBLP jump near the AAAI0617 backend
+range as soon as the anchor subspace head is attached to the current model.
+
+### Full run
+
+| Dataset | v37c | v40a | delta | SOTA | gap(v40a) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| acm | 79.70 | 85.59 | +5.89 | 93.62 | -8.03 |
+| dblp | 67.59 | 89.60 | +22.01 | 93.69 | -4.09 |
+| pubmed | 63.64 | 63.66 | +0.02 | 76.17 | -12.51 |
+| wiki | 39.63 | 52.47 | +12.84 | 64.82 | -12.35 |
+| flickr | 28.99 | 27.37 | -1.62 | 83.89 | -56.52 |
+| blogcatalog | 86.39 | 92.90 | +6.51 | 91.72 | +1.18 |
+| squirrel | 26.51 | 25.48 | -1.03 | 30.51 | -5.03 |
+| texas | 70.49 | 42.08 | -28.41 | 74.32 | -32.24 |
+| chameleon | 34.65 | 31.23 | -3.42 | 35.84 | -4.61 |
+
+Accumulated ACC:
+
+- `v37c`: `497.59`
+- `v40a`: `510.36`
+
+### v40 conclusion
+
+`v40a` finds a real breakthrough mechanism: the AAAI0617 anchor subspace/ELSS
+backend is highly compatible with the current E2E embedding on ACM, DBLP,
+Wiki, and BlogCatalog. This proves that the remaining ACM/DBLP gap was largely
+a final-backend/assignment mechanism gap, not only a frontend embedding gap.
+
+However, unified always-on `legacy_subspace_refine` is not yet a clean final
+replacement because it badly damages `Texas` and hurts `Chameleon`, `Squirrel`,
+and `Flickr`. The next useful step is `v40b`: design an unsupervised selector
+or confidence gate between v37c full-KMeans and v40a legacy subspace head,
+without using dataset-specific routing.

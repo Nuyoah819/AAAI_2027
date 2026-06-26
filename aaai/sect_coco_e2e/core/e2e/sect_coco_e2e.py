@@ -17,6 +17,7 @@ from sklearn.neighbors import NearestNeighbors
 from sklearn.preprocessing import normalize
 
 from core.eval.metrics import evaluate_clustering
+from core.legacy.sect_coco_legacy import SECTCoCoConfig, _subspace_refine as legacy_subspace_refine
 
 
 LOGGER = logging.getLogger(__name__)
@@ -2055,6 +2056,29 @@ class E2ESECTCoCo:
             except Exception as _e:
                 _postproc_error = repr(_e)
                 labels = out["q_refined"].argmax(dim=1).detach().cpu().numpy().astype(np.int64)
+            _legacy_head_used = False
+            _legacy_head_error = ""
+            if str(cfg.final_label_mode).lower() in {"legacy_subspace_refine", "subspace_refine_head"}:
+                try:
+                    labels, emb = run_legacy_subspace_refine_head(
+                        cfg,
+                        adj=adj,
+                        features=features,
+                        base_features=x_np,
+                        embedding=emb,
+                        edge_index=edge_index_np,
+                        head_support={
+                            "support": out["support_weight"].detach().cpu().numpy(),
+                            "homo": out["homo"].detach().cpu().numpy(),
+                            "hard": out["hard"].detach().cpu().numpy(),
+                        },
+                        n_clusters=self.n_clusters,
+                        device=device,
+                    )
+                    _postproc_choice = "legacy_subspace_refine"
+                    _legacy_head_used = True
+                except Exception as _e:
+                    _legacy_head_error = repr(_e)
         self.embedding_ = normalize(np.nan_to_num(emb), norm="l2", axis=1)
         self.labels_ = labels
         self.diagnostics_ = {
@@ -2074,6 +2098,8 @@ class E2ESECTCoCo:
         self.diagnostics_["sil_full"] = float(_sil_full) if "_sil_full" in locals() else -2.0
         self.diagnostics_["sil_sub"] = float(_sil_sub) if "_sil_sub" in locals() else -2.0
         self.diagnostics_["postproc_error"] = _postproc_error if "_postproc_error" in locals() else ""
+        self.diagnostics_["legacy_head_used"] = bool(_legacy_head_used) if "_legacy_head_used" in locals() else False
+        self.diagnostics_["legacy_head_error"] = _legacy_head_error if "_legacy_head_error" in locals() else ""
         if true_labels is not None:
             true_labels_np = np.asarray(true_labels).reshape(-1)
             if true_labels_np.shape[0] == labels.shape[0]:
@@ -2122,6 +2148,88 @@ def as_csr(x, dtype=np.float32) -> sp.csr_matrix:
     if sp.issparse(x):
         return x.astype(dtype).tocsr()
     return sp.csr_matrix(np.asarray(x, dtype=dtype))
+
+
+def run_legacy_subspace_refine_head(
+    cfg: E2ESECTCoCoConfig,
+    *,
+    adj: sp.csr_matrix,
+    features: sp.spmatrix | np.ndarray,
+    base_features: np.ndarray,
+    embedding: np.ndarray,
+    edge_index: np.ndarray,
+    head_support: dict[str, np.ndarray],
+    n_clusters: int,
+    device: torch.device,
+) -> tuple[np.ndarray, np.ndarray]:
+    legacy_cfg = e2e_to_legacy_subspace_config(cfg)
+    support = graph_from_directed_edges(adj.shape[0], edge_index, head_support["support"])
+    homo = graph_from_directed_edges(adj.shape[0], edge_index, head_support["homo"])
+    hard = graph_from_directed_edges(adj.shape[0], edge_index, head_support["hard"])
+    denoised = (
+        support
+        + 0.25 * hard
+        + float(cfg.extras.get("head_raw_graph_weight", 0.10)) * adj
+        + sp.eye(adj.shape[0], dtype=np.float32, format="csr")
+    ).tocsr()
+    denoised.eliminate_zeros()
+    adapter = LegacySubspaceHeadAdapter(
+        n_clusters=n_clusters,
+        input_features=features,
+        base_features=base_features,
+        embedding=embedding,
+        raw_adj=adj,
+        denoised_adj=denoised,
+        homo_graph=homo,
+    )
+    labels = legacy_subspace_refine(adapter, legacy_cfg, device)
+    return labels.astype(np.int64), np.asarray(adapter.embedding_, dtype=np.float32)
+
+
+def e2e_to_legacy_subspace_config(cfg: E2ESECTCoCoConfig) -> SECTCoCoConfig:
+    extras = dict(cfg.extras)
+    return SECTCoCoConfig(
+        seed=cfg.seed,
+        device=cfg.device,
+        attr_dim=cfg.input_dim,
+        cluster_dim=cfg.projection_dim,
+        kmeans_n_init=cfg.kmeans_n_init,
+        use_minibatch_kmeans=cfg.use_minibatch_kmeans,
+        name=cfg.name,
+        extras=extras,
+    )
+
+
+class LegacySubspaceHeadAdapter:
+    def __init__(
+        self,
+        *,
+        n_clusters: int,
+        input_features: sp.spmatrix | np.ndarray,
+        base_features: np.ndarray,
+        embedding: np.ndarray,
+        raw_adj: sp.csr_matrix,
+        denoised_adj: sp.csr_matrix,
+        homo_graph: sp.csr_matrix,
+    ):
+        self.n_clusters = int(n_clusters)
+        self.input_features_ = as_csr(input_features)
+        self.base_features_ = normalize(np.nan_to_num(base_features), norm="l2", axis=1).astype(np.float32)
+        self.embedding_ = normalize(np.nan_to_num(embedding), norm="l2", axis=1).astype(np.float32)
+        self.raw_adj_ = raw_adj
+        self.denoised_adj_ = denoised_adj
+        self.homo_graph_ = homo_graph
+
+
+def graph_from_directed_edges(n: int, edge_index: np.ndarray, weight: np.ndarray) -> sp.csr_matrix:
+    rows = edge_index[0].astype(np.int64)
+    cols = edge_index[1].astype(np.int64)
+    vals = np.asarray(weight, dtype=np.float32)
+    graph = sp.coo_matrix((vals, (rows, cols)), shape=(n, n), dtype=np.float32).tocsr()
+    graph = graph.maximum(graph.T).tocsr()
+    graph.setdiag(0)
+    graph.eliminate_zeros()
+    return graph
 
 
 def prepare_dense_features(
