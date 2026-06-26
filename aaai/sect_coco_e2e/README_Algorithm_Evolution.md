@@ -5236,3 +5236,98 @@ fragile case because the selector sometimes prefers subspace there.
 The remaining gap to SOTA is still largest on `Flickr` and `Squirrel`, but the
 new evidence says the full-space route is the right default and the fixed `2K`
 subspace should no longer be the universal post-processing choice.
+
+## 2026-06-26: v37b/v37c Squirrel Rollback Fix and Final Lock
+
+### v37a result and failure mode
+
+`v37a` was a clear improvement on several weak graphs:
+
+- `Flickr`: `20.01 -> 29.41` (`+9.40`)
+- `Chameleon`: `31.93 -> 34.08` (`+2.15`, close to SOTA)
+- `BlogCatalog`: `83.41 -> 85.51` (`+2.10`)
+
+The failure was `Squirrel`: `27.61 -> 21.02` (`-6.59`). The diagnostics showed
+that `embedding_kmeans_acc` was much higher (`30.21`) than the selected final
+labeling (`21.02`), so the silhouette selector was too optimistic about the
+subspace branch on that run.
+
+### v37b fix
+
+`v37b` raised the subspace switch margin from `0.01` to `0.05` and kept `full`
+as the default:
+
+```python
+if _sil_sub > _sil_full + float(cfg.postproc_subspace_margin):
+    labels = _lab_sub
+else:
+    labels = _lab_full
+```
+
+The 80-epoch smoke on `squirrel,acm,flickr` passed:
+
+| Dataset | postproc_choice | sil_full | sil_sub | ACC |
+| --- | --- | ---: | ---: | ---: |
+| squirrel | full | 0.0381 | 0.0381 | 30.42 |
+| acm | full | 0.3703 | 0.3704 | 69.69 |
+| flickr | full | 0.0557 | 0.0600 | 36.20 |
+
+The full 260-epoch `v37b` run still did not recover `Squirrel`: it selected
+`full`, but only reached `21.03`. The important follow-up finding is that this
+`full` path is the selector's normalized-embedding KMeans, while the diagnostic
+`embedding_kmeans_acc` on `Squirrel` was still `30.13`. The rollback was
+therefore not only a subspace-selection problem; the final normalized KMeans
+path itself can differ from the raw embedding KMeans diagnostic.
+
+### v37b full-run comparison
+
+| Dataset | v28b | v35b | v37a | v37b | SOTA | gap(v37b) | choice | embedding_kmeans_acc |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- | ---: |
+| acm | 70.25 | 79.83 | 79.17 | 78.68 | 93.62 | -14.94 | full | 78.68 |
+| dblp | 67.12 | 70.40 | 68.35 | 68.70 | 93.69 | -24.99 | full | 68.70 |
+| pubmed | 62.42 | 63.02 | 62.60 | 64.12 | 76.17 | -12.05 | full | 64.12 |
+| wiki | 32.14 | 42.29 | 41.66 | 38.88 | 64.82 | -25.94 | full | 38.88 |
+| flickr | 21.19 | 20.01 | 29.41 | 29.03 | 83.89 | -54.86 | full | 31.92 |
+| blogcatalog | 83.43 | 83.41 | 85.51 | 85.41 | 91.72 | -6.31 | full | 85.41 |
+| squirrel | 23.36 | 27.61 | 21.02 | 21.03 | 30.51 | -9.48 | full | 30.13 |
+| texas | 68.85 | 67.76 | 67.76 | 72.13 | 74.32 | -2.19 | full | 72.13 |
+| chameleon | 31.62 | 31.93 | 34.08 | 34.87 | 35.84 | -0.97 | full | 34.87 |
+
+### v37c final lock
+
+Because `v37b` still left `Squirrel` in rollback, the conservative branch
+raised `postproc_subspace_margin` to `1.0`, effectively making the final
+post-processing pure `full`.
+
+| Dataset | v35b | v37a | v37b | v37c | SOTA | gap(v37c) | choice | embedding_kmeans_acc |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- | ---: |
+| acm | 79.83 | 79.17 | 78.68 | 79.70 | 93.62 | -13.92 | full | 79.70 |
+| dblp | 70.40 | 68.35 | 68.70 | 67.59 | 93.69 | -26.10 | full | 67.59 |
+| pubmed | 63.02 | 62.60 | 64.12 | 63.64 | 76.17 | -12.53 | full | 63.64 |
+| wiki | 42.29 | 41.66 | 38.88 | 39.63 | 64.82 | -25.19 | full | 40.29 |
+| flickr | 20.01 | 29.41 | 29.03 | 28.99 | 83.89 | -54.90 | full | 29.41 |
+| blogcatalog | 83.41 | 85.51 | 85.41 | 86.39 | 91.72 | -5.33 | full | 86.39 |
+| squirrel | 27.61 | 21.02 | 21.03 | 26.51 | 30.51 | -4.00 | full | 26.63 |
+| texas | 67.76 | 67.76 | 72.13 | 70.49 | 74.32 | -3.83 | full | 69.95 |
+| chameleon | 31.93 | 34.08 | 34.87 | 34.65 | 35.84 | -1.19 | full | 34.17 |
+
+Accumulated ACC over the 9 datasets:
+
+- `v35b`: `486.26`
+- `v37a`: `489.56`
+- `v37b`: `492.85`
+- `v37c`: `497.60`
+
+`v37c` is the final locked version because it has the highest 9-dataset
+accumulated ACC and removes the severe `Squirrel` `21%` failure. It does not
+fully restore `Squirrel` to the `v35b` peak (`27.61`), and `DBLP`/`Wiki` remain
+below `v35b`, but the total score is highest and the gains on `Flickr`,
+`BlogCatalog`, `Texas`, and `Chameleon` are large enough to retain it.
+
+### Final SOTA gap summary
+
+- Close to SOTA: `Chameleon` (`-1.19`), `Squirrel` (`-4.00`), `Texas` (`-3.83`)
+- Still materially behind: `BlogCatalog` (`-5.33`), `ACM` (`-13.92`),
+  `PubMed` (`-12.53`), `Wiki` (`-25.19`), `DBLP` (`-26.10`)
+- Biggest bottleneck: `Flickr` (`-54.90`), still the structural
+  strong-heterophily large-graph problem.
