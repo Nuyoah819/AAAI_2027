@@ -197,6 +197,9 @@ class E2ESECTCoCoConfig:
     aptc_teacher_conf_power: float = 2.0
     aptc_teacher_conf_floor: float = 0.10
     aptc_teacher_conf_center: float = 0.50
+    aptc_teacher_conf_center_mode: str = "fixed"
+    aptc_teacher_conf_quantile: float = 0.65
+    aptc_teacher_conf_min_scale: float = 0.05
     aptc_proto_readout_weight: float = 0.0
     aptc_proto_readout_temperature: float = 0.20
     aptc_proto_readout_conf_power: float = 1.0
@@ -1241,6 +1244,8 @@ class EndToEndSECTCoCoModule(nn.Module):
         teacher_conf = q_reg.new_zeros(q_reg.shape[0])
         conf_weight = q_reg.new_zeros(q_reg.shape[0])
         conf_floor = float(cfg.aptc_teacher_conf_floor)
+        teacher_conf_center = q_reg.new_tensor(float(cfg.aptc_teacher_conf_center))
+        teacher_conf_scale = q_reg.new_tensor(max(1.0 - float(cfg.aptc_teacher_conf_center), 1e-8))
         if self.init_teacher.numel() == q_reg.numel():
             teacher = self.init_teacher.detach().clamp_min(1e-8)
             q_log = q_reg.clamp_min(1e-8).log()
@@ -1248,8 +1253,27 @@ class EndToEndSECTCoCoModule(nn.Module):
             teacher_conf = teacher.max(dim=1).values.detach()
             conf_center = float(cfg.aptc_teacher_conf_center)
             conf_power = max(1e-4, float(cfg.aptc_teacher_conf_power))
-            conf_scale = max(1.0 - conf_center, 1e-8)
-            conf_weight = ((teacher_conf - conf_center).clamp_min(0.0) / conf_scale)
+            conf_mode = str(getattr(cfg, "aptc_teacher_conf_center_mode", "fixed")).lower()
+            if conf_mode in {"adaptive_quantile", "quantile"} and teacher_conf.numel() > 1:
+                conf_q = float(np.clip(float(cfg.aptc_teacher_conf_quantile), 0.0, 0.99))
+                teacher_conf_center = torch.quantile(teacher_conf, conf_q).detach()
+                teacher_conf_scale = (teacher_conf.max().detach() - teacher_conf_center).clamp_min(
+                    float(cfg.aptc_teacher_conf_min_scale)
+                )
+            elif conf_mode == "adaptive_mean" and teacher_conf.numel() > 0:
+                teacher_conf_center = teacher_conf.mean().detach()
+                teacher_conf_scale = (teacher_conf.max().detach() - teacher_conf_center).clamp_min(
+                    float(cfg.aptc_teacher_conf_min_scale)
+                )
+            elif conf_mode == "adaptive_median" and teacher_conf.numel() > 0:
+                teacher_conf_center = teacher_conf.median().detach()
+                teacher_conf_scale = (teacher_conf.max().detach() - teacher_conf_center).clamp_min(
+                    float(cfg.aptc_teacher_conf_min_scale)
+                )
+            else:
+                teacher_conf_center = teacher_conf.new_tensor(conf_center)
+                teacher_conf_scale = teacher_conf.new_tensor(max(1.0 - conf_center, 1e-8))
+            conf_weight = ((teacher_conf - teacher_conf_center).clamp_min(0.0) / teacher_conf_scale).clamp(0.0, 1.0)
             conf_weight = conf_floor + (1.0 - conf_floor) * conf_weight.pow(conf_power)
             init_teacher_loss = (conf_weight * per_node_kl).sum() / conf_weight.sum().clamp_min(1e-8)
         else:
@@ -1477,6 +1501,8 @@ class EndToEndSECTCoCoModule(nn.Module):
             "init_teacher": float(init_teacher_loss.detach().cpu()),
             "teacher_conf_mean": float(teacher_conf.mean().detach().cpu()),
             "teacher_conf_std": float(teacher_conf.std(unbiased=False).detach().cpu()),
+            "teacher_conf_center": float(teacher_conf_center.detach().cpu()),
+            "teacher_conf_scale": float(teacher_conf_scale.detach().cpu()),
             "teacher_weight_mean": float(conf_weight.mean().detach().cpu()),
             "teacher_weight_active_ratio": float((conf_weight > conf_floor + 1e-6).float().mean().detach().cpu()),
             "proto_readout": float(proto_readout_loss.detach().cpu()),

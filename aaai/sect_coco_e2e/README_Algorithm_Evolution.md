@@ -5906,3 +5906,128 @@ Current retained conclusion:
 - `v41b`: refresh-frequency scan rejected
 - `v41c`: confidence weighting improves robustness, especially on `Wiki`
 - `v37c`: still the safest retained unified final candidate
+
+## 2026-06-26: v41d Adaptive Confidence Teacher
+
+### Hypothesis
+
+`v41c` showed that confidence-weighted KMeans teacher supervision is useful, but
+its fixed confidence center made almost all nodes fall back to the floor weight.
+The `teacher_weight_active_ratio` was close to `0` on nearly every dataset, so
+the loss did not really distinguish useful teacher nodes from noisy ones.
+
+`v41d` keeps teacher confidence weighting, but replaces the fixed global center
+with a graph-adaptive teacher-confidence quantile. The hypothesis was that a
+relative center would keep the same unified loss for all datasets while allowing
+the top-confidence teacher nodes inside each graph to receive meaningful gain.
+
+### Implementation
+
+The change is intentionally local to the teacher loss in
+`core/e2e/sect_coco_e2e.py`:
+
+- added config fields `aptc_teacher_conf_center_mode`,
+  `aptc_teacher_conf_quantile`, and `aptc_teacher_conf_min_scale`;
+- kept the old `fixed` center as the default, so previous variants remain
+  unchanged;
+- added `adaptive_quantile`, `adaptive_mean`, and `adaptive_median` center
+  modes, all computed from the current graph's detached `teacher_conf`;
+- normalized the confidence lift by the graph-local upper-tail span and clamped
+  it to `[0, 1]`;
+- added diagnostics `teacher_conf_center` and `teacher_conf_scale`.
+
+No dataset-name branch, module switch, loss switch, head switch, or assignment
+switch was added. All 9 datasets still share the same forward, loss, and final
+assignment path.
+
+### Variants
+
+- `v41d`: adaptive quantile center at `0.65`, floor `0.10`, power `2.0`.
+- `v41d_soft`: adaptive quantile center at `0.55`, floor `0.15`, power `1.5`.
+- `v41d_sharp`: adaptive quantile center at `0.75`, floor `0.08`, power `2.5`.
+
+### 80-epoch smoke results
+
+ACC/NMI/ARI are percentages.
+
+| Dataset | v41d ACC/NMI/ARI | v41d_soft ACC/NMI/ARI | v41d_sharp ACC/NMI/ARI |
+| --- | ---: | ---: | ---: |
+| acm | 82.58 / 51.63 / 56.12 | 82.71 / 51.64 / 56.26 | 83.07 / 52.38 / 57.09 |
+| dblp | 63.00 / 32.10 / 27.14 | 61.77 / 29.57 / 24.91 | 62.83 / 31.41 / 26.66 |
+| pubmed | 62.11 / 23.12 / 22.46 | 61.29 / 22.69 / 21.84 | 61.91 / 23.52 / 22.78 |
+| wiki | 42.58 / 38.24 / 20.22 | 42.08 / 37.30 / 19.82 | 40.91 / 37.67 / 19.10 |
+| flickr | 43.39 / 30.67 / 19.41 | 48.63 / 35.08 / 22.84 | 46.43 / 34.16 / 22.68 |
+| blogcatalog | 81.62 / 61.10 / 60.88 | 82.35 / 62.10 / 62.73 | 83.26 / 63.40 / 64.25 |
+| squirrel | 21.19 / 1.47 / 0.04 | 30.24 / 6.38 / 5.23 | 30.32 / 6.51 / 5.34 |
+| texas | 73.77 / 49.44 / 61.09 | 73.77 / 49.44 / 61.09 | 73.77 / 49.44 / 61.09 |
+| chameleon | 33.16 / 15.15 / 6.08 | 33.38 / 15.29 / 6.23 | 32.63 / 14.22 / 5.43 |
+
+Smoke accumulated ACC:
+
+- `v41d`: `503.40`
+- `v41d_soft`: `516.23`
+- `v41d_sharp`: `515.14`
+
+### Main comparison and diagnostics
+
+| Dataset | v37c_smoke | v41a | v41c | v41d | delta_vs_v41c | v41d_soft | v41d_sharp | teacher_conf_mean | teacher_weight_active_ratio | prototype_separation |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| acm | 70.38 | 82.78 | 82.91 | 82.58 | -0.33 | 82.71 | 83.07 | 0.3662 | 0.3474 | 0.6336 |
+| dblp | 66.48 | 63.25 | 63.22 | 63.00 | -0.22 | 61.77 | 62.83 | 0.3999 | 0.3493 | 0.3060 |
+| pubmed | 63.21 | 62.09 | 62.00 | 62.11 | +0.11 | 61.29 | 61.91 | 0.4344 | 0.3492 | 0.1742 |
+| wiki | 44.78 | 38.54 | 42.70 | 42.58 | -0.12 | 42.08 | 40.91 | 0.0868 | 0.3472 | 0.3627 |
+| flickr | 36.81 | 47.42 | 46.94 | 43.39 | -3.55 | 48.63 | 46.43 | 0.1288 | 0.3468 | 0.5940 |
+| blogcatalog | 84.60 | 82.56 | 82.62 | 81.62 | -1.00 | 82.35 | 83.26 | 0.2169 | 0.3483 | 0.2725 |
+| squirrel | 30.32 | 30.36 | 30.44 | 21.19 | -9.25 | 30.24 | 30.32 | 0.2415 | 0.3438 | 0.2094 |
+| texas | 73.77 | 73.77 | 73.22 | 73.77 | +0.55 | 73.77 | 73.77 | 0.3274 | 0.3497 | 0.1170 |
+| chameleon | 32.89 | 32.72 | 32.94 | 33.16 | +0.22 | 33.38 | 32.63 | 0.2702 | 0.3474 | 0.0576 |
+
+### Diagnostics interpretation
+
+The mechanism worked in the narrow diagnostic sense: `v41d` moved
+`teacher_weight_active_ratio` from the `v41c` near-zero regime to about `0.34`
+to `0.35` on every dataset. The fallback variants also behaved as intended:
+`v41d_soft` raised active ratio to about `0.45`, while `v41d_sharp` lowered it
+to about `0.24`.
+
+However, restoring active teacher weights did not repair DBLP. The base
+adaptive version slightly lowered DBLP from `63.22` to `63.00`; the soft curve
+fell further to `61.77`; the sharp curve recovered only to `62.83`. This means
+the v41c failure was not only caused by inactive weights. The more important
+problem is that graph-relative high teacher confidence is not reliably aligned
+with useful DBLP teacher nodes. The adaptive center can select a top slice, but
+that top slice is not semantically clean enough to improve the conflict pair.
+
+`v41d_soft` was the best accumulated-ACC smoke because it rescued Flickr,
+BlogCatalog, and Squirrel, but it failed the DBLP gate. `v41d_sharp` improved
+ACM and BlogCatalog, but it pushed Wiki down to `40.91`, below the intended
+stability line.
+
+### Decision: no full
+
+No 260-epoch full run was launched. None of the three candidates met the full
+gate:
+
+- DBLP never reached `64.5`;
+- the best DBLP among v41d variants was the base `v41d` at `63.00`, still below
+  `v41c` and below `v37c_smoke`;
+- `v41d_sharp` lowered Wiki to `40.91`;
+- `v41d_soft` had the best total smoke score but damaged DBLP too much.
+
+### Next recommended direction
+
+If v41e is pursued, use a single minimal hypothesis: keep adaptive confidence
+weighting, but replace scalar `max teacher probability` confidence with a
+margin-based teacher reliability score:
+
+```text
+teacher_margin = top1(teacher) - top2(teacher)
+teacher_reliability = normalized adaptive function of teacher_margin
+```
+
+The reason is diagnostic, not architectural: `teacher_conf=max_k teacher[i,k]`
+can be high when all clusters are poorly separated but one is merely least bad.
+A margin score should better identify nodes whose teacher assignment is
+actually decisive. This remains unified and dataset-agnostic, and it should be
+implemented as a one-line confidence-source swap inside the existing teacher
+weighting block rather than as a new head or routing mechanism.

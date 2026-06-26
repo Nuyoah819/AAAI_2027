@@ -3119,6 +3119,48 @@ EXPERIMENT_VARIANTS["v41c_soft"] = {
         "aptc_teacher_conf_center": 0.45,
     },
 }
+EXPERIMENT_VARIANTS["v41d"] = {
+    "output_stem": "unified_aptc_9datasets_v41d",
+    "overrides": {
+        **EXPERIMENT_VARIANTS["v28b"]["overrides"],
+        "aptc_init_teacher_weight": 0.10,
+        "cluster_update_interval": 25,
+        "aptc_teacher_conf_power": 2.0,
+        "aptc_teacher_conf_floor": 0.10,
+        "aptc_teacher_conf_center": 0.50,
+        "aptc_teacher_conf_center_mode": "adaptive_quantile",
+        "aptc_teacher_conf_quantile": 0.65,
+        "aptc_teacher_conf_min_scale": 0.05,
+    },
+}
+EXPERIMENT_VARIANTS["v41d_soft"] = {
+    "output_stem": "unified_aptc_9datasets_v41d_soft",
+    "overrides": {
+        **EXPERIMENT_VARIANTS["v28b"]["overrides"],
+        "aptc_init_teacher_weight": 0.10,
+        "cluster_update_interval": 25,
+        "aptc_teacher_conf_power": 1.5,
+        "aptc_teacher_conf_floor": 0.15,
+        "aptc_teacher_conf_center": 0.50,
+        "aptc_teacher_conf_center_mode": "adaptive_quantile",
+        "aptc_teacher_conf_quantile": 0.55,
+        "aptc_teacher_conf_min_scale": 0.05,
+    },
+}
+EXPERIMENT_VARIANTS["v41d_sharp"] = {
+    "output_stem": "unified_aptc_9datasets_v41d_sharp",
+    "overrides": {
+        **EXPERIMENT_VARIANTS["v28b"]["overrides"],
+        "aptc_init_teacher_weight": 0.10,
+        "cluster_update_interval": 25,
+        "aptc_teacher_conf_power": 2.5,
+        "aptc_teacher_conf_floor": 0.08,
+        "aptc_teacher_conf_center": 0.50,
+        "aptc_teacher_conf_center_mode": "adaptive_quantile",
+        "aptc_teacher_conf_quantile": 0.75,
+        "aptc_teacher_conf_min_scale": 0.05,
+    },
+}
 
 REMOVED_BACKEND_KEYS = {
     "final_label_mode",
