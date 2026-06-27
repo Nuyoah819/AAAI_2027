@@ -227,6 +227,16 @@ class E2ESECTCoCoConfig:
     aptc_prototype_anchor_weight: float = 0.0
     aptc_prototype_separation_weight: float = 0.02
     aptc_prototype_separation_margin: float = 0.20
+    ideal_signed_embedding_weight: float = 0.0
+    ideal_signed_homo_weight: float = 1.0
+    ideal_signed_hetero_weight: float = 0.5
+    ideal_signed_hard_weight: float = 0.10
+    ideal_confidence_power: float = 1.0
+    ideal_band_resolution_weight: float = 0.0
+    ideal_band_center: float = 0.5
+    ideal_band_width: float = 0.20
+    ideal_highpass_energy_weight: float = 0.0
+    ideal_highpass_conflict_power: float = 1.0
     init_bootstrap_mode: str = "embedding"
     init_bootstrap_dim: int = 0
     mid_init_epoch: int = -1
@@ -1033,6 +1043,93 @@ def local_consensus_teacher_target(
     return t_final, stats
 
 
+def _weighted_mean(value: torch.Tensor, weight: torch.Tensor) -> torch.Tensor:
+    weight = weight.to(value.dtype).clamp_min(0.0)
+    return (value * weight).sum() / weight.sum().clamp_min(1e-8)
+
+
+def ideal_signed_embedding_regularizer(
+    z: torch.Tensor,
+    edge_index: torch.Tensor,
+    homo: torch.Tensor,
+    hetero: torch.Tensor,
+    hard: torch.Tensor,
+    edge_confidence: torch.Tensor,
+    *,
+    homo_weight: float = 1.0,
+    hetero_weight: float = 0.5,
+    hard_weight: float = 0.10,
+    confidence_power: float = 1.0,
+    hard_margin: float = 0.25,
+) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+    src, dst = edge_index
+    z_norm = F.normalize(z, p=2, dim=1)
+    sim = (z_norm[src] * z_norm[dst]).sum(dim=1).clamp(-1.0, 1.0)
+    conf = edge_confidence.detach().clamp(0.0, 1.0).pow(max(1e-4, float(confidence_power)))
+    homo_w = homo.detach().clamp_min(0.0) * conf
+    hetero_w = hetero.detach().clamp_min(0.0) * conf
+    hard_w = hard.detach().clamp_min(0.0) * conf
+    homo_loss = _weighted_mean(1.0 - sim, homo_w)
+    hetero_loss = _weighted_mean(F.relu(sim), hetero_w)
+    hard_loss = _weighted_mean(F.relu(sim - float(hard_margin)), hard_w)
+    loss = float(homo_weight) * homo_loss + float(hetero_weight) * hetero_loss + float(hard_weight) * hard_loss
+    stats = {
+        "ideal_homo_sim_mean": _weighted_mean(sim, homo_w),
+        "ideal_hetero_pos_overlap": _weighted_mean(F.relu(sim), hetero_w),
+        "ideal_hard_pos_overlap": _weighted_mean(F.relu(sim - float(hard_margin)), hard_w),
+    }
+    return loss, stats
+
+
+def ideal_band_resolution_regularizer(
+    homo: torch.Tensor,
+    hetero: torch.Tensor,
+    hard: torch.Tensor,
+    edge_confidence: torch.Tensor,
+    *,
+    confidence_power: float = 1.0,
+) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+    conf = edge_confidence.detach().clamp(0.0, 1.0).pow(max(1e-4, float(confidence_power)))
+    band_mass = _weighted_mean(hard, conf)
+    clear_mass = _weighted_mean(torch.maximum(homo, hetero), conf)
+    return band_mass, {"ideal_band_mass": band_mass, "ideal_clear_mass": clear_mass}
+
+
+def ideal_highpass_energy_regularizer(
+    low_view: torch.Tensor,
+    high_view: torch.Tensor,
+    edge_index: torch.Tensor,
+    hetero: torch.Tensor,
+    hard: torch.Tensor,
+    *,
+    conflict_power: float = 1.0,
+    target_min_energy: float = 0.20,
+) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+    n = low_view.shape[0]
+    high_energy = high_view.pow(2).sum(dim=1) / (low_view.pow(2).sum(dim=1) + high_view.pow(2).sum(dim=1) + 1e-8)
+    src, dst = edge_index
+    edge_conflict = (hetero.detach().clamp_min(0.0) + hard.detach().clamp_min(0.0)).clamp(0.0, 1.0)
+    node_mass = high_view.new_zeros(n)
+    node_degree = high_view.new_zeros(n)
+    node_mass.index_add_(0, src, edge_conflict)
+    node_mass.index_add_(0, dst, edge_conflict)
+    node_degree.index_add_(0, src, torch.ones_like(edge_conflict))
+    node_degree.index_add_(0, dst, torch.ones_like(edge_conflict))
+    conflict = (node_mass / node_degree.clamp_min(1.0)).clamp(0.0, 1.0).pow(max(1e-4, float(conflict_power)))
+    loss = F.relu(float(target_min_energy) * conflict - high_energy).mean()
+    centered_conflict = conflict - conflict.mean()
+    centered_energy = high_energy.detach() - high_energy.detach().mean()
+    corr = (centered_conflict * centered_energy).mean() / (
+        centered_conflict.pow(2).mean().sqrt() * centered_energy.pow(2).mean().sqrt() + 1e-8
+    )
+    stats = {
+        "ideal_highpass_energy_mean": high_energy.mean(),
+        "ideal_conflict_mean": conflict.mean(),
+        "ideal_conflict_energy_corr": corr,
+    }
+    return loss, stats
+
+
 class EndToEndSECTCoCoModule(nn.Module):
     def __init__(
         self,
@@ -1521,6 +1618,38 @@ class EndToEndSECTCoCoModule(nn.Module):
             weights=view_weights,
         )
         edge_posterior_loss = edge_posterior_energy(q_reg, self.edge_index, out["homo"], out["hetero"], out["hard"])
+        ideal_enabled = (
+            float(getattr(cfg, "ideal_signed_embedding_weight", 0.0)) > 0.0
+            or float(getattr(cfg, "ideal_band_resolution_weight", 0.0)) > 0.0
+            or float(getattr(cfg, "ideal_highpass_energy_weight", 0.0)) > 0.0
+        )
+        ideal_signed_embedding_loss, ideal_signed_stats = ideal_signed_embedding_regularizer(
+            out["embedding"],
+            self.edge_index,
+            out["homo"],
+            out["hetero"],
+            out["hard"],
+            out["score"],
+            homo_weight=float(getattr(cfg, "ideal_signed_homo_weight", 1.0)),
+            hetero_weight=float(getattr(cfg, "ideal_signed_hetero_weight", 0.5)),
+            hard_weight=float(getattr(cfg, "ideal_signed_hard_weight", 0.10)),
+            confidence_power=float(getattr(cfg, "ideal_confidence_power", 1.0)),
+        )
+        ideal_band_resolution_loss, ideal_band_stats = ideal_band_resolution_regularizer(
+            out["homo"],
+            out["hetero"],
+            out["hard"],
+            out["score"],
+            confidence_power=float(getattr(cfg, "ideal_confidence_power", 1.0)),
+        )
+        ideal_highpass_energy_loss, ideal_highpass_stats = ideal_highpass_energy_regularizer(
+            out["low_view"],
+            out["hetero_view"],
+            self.edge_index,
+            out["hetero"],
+            out["hard"],
+            conflict_power=float(getattr(cfg, "ideal_highpass_conflict_power", 1.0)),
+        )
         confidence_entropy_loss, confidence_entropy_stats = confidence_weighted_entropy_loss(
             q_reg,
             self.edge_index,
@@ -1664,6 +1793,9 @@ class EndToEndSECTCoCoModule(nn.Module):
             + cfg.compact_loss_weight * compact_loss
             + cfg.aptc_view_consistency_weight * view_consistency_loss
             + cfg.aptc_edge_posterior_weight * edge_posterior_loss
+            + cfg.ideal_signed_embedding_weight * ideal_signed_embedding_loss
+            + cfg.ideal_band_resolution_weight * ideal_band_resolution_loss
+            + cfg.ideal_highpass_energy_weight * ideal_highpass_energy_loss
             + cfg.aptc_prior_entropy_weight * prior_entropy_loss
             + cfg.calib_alpha_weight * calib_alpha_loss
             + cfg.calib_mask_weight * calib_mask_loss
@@ -1731,6 +1863,18 @@ class EndToEndSECTCoCoModule(nn.Module):
             "compact": float(compact_loss.detach().cpu()),
             "view_consistency": float(view_consistency_loss.detach().cpu()),
             "edge_posterior": float(edge_posterior_loss.detach().cpu()),
+            "ideal_enabled": bool(ideal_enabled),
+            "ideal_signed_embedding_loss": float(ideal_signed_embedding_loss.detach().cpu()),
+            "ideal_band_resolution_loss": float(ideal_band_resolution_loss.detach().cpu()),
+            "ideal_highpass_energy_loss": float(ideal_highpass_energy_loss.detach().cpu()),
+            "ideal_homo_sim_mean": float(ideal_signed_stats["ideal_homo_sim_mean"].detach().cpu()),
+            "ideal_hetero_pos_overlap": float(ideal_signed_stats["ideal_hetero_pos_overlap"].detach().cpu()),
+            "ideal_hard_pos_overlap": float(ideal_signed_stats["ideal_hard_pos_overlap"].detach().cpu()),
+            "ideal_band_mass": float(ideal_band_stats["ideal_band_mass"].detach().cpu()),
+            "ideal_clear_mass": float(ideal_band_stats["ideal_clear_mass"].detach().cpu()),
+            "ideal_highpass_energy_mean": float(ideal_highpass_stats["ideal_highpass_energy_mean"].detach().cpu()),
+            "ideal_conflict_mean": float(ideal_highpass_stats["ideal_conflict_mean"].detach().cpu()),
+            "ideal_conflict_energy_corr": float(ideal_highpass_stats["ideal_conflict_energy_corr"].detach().cpu()),
             "prior_entropy": float(prior_entropy_loss.detach().cpu()),
             "calib_alpha": float(calib_alpha_loss.detach().cpu()),
             "calib_mask": float(calib_mask_loss.detach().cpu()),

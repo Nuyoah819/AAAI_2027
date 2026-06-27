@@ -3244,6 +3244,23 @@ EXPERIMENT_VARIANTS["v42a_local_consensus_teacher"] = {
         "aptc_teacher_conf_floor": 0.0,
     },
 }
+EXPERIMENT_VARIANTS["v43a_ideal_frontend_calibrated"] = {
+    "output_stem": "unified_aptc_9datasets_v43a_ideal",
+    "overrides": {
+        **EXPERIMENT_VARIANTS["v28b"]["overrides"],
+        "ideal_signed_embedding_weight": 0.03,
+        "ideal_signed_homo_weight": 1.0,
+        "ideal_signed_hetero_weight": 0.5,
+        "ideal_signed_hard_weight": 0.10,
+        "ideal_confidence_power": 1.0,
+        "ideal_band_resolution_weight": 0.01,
+        "ideal_band_center": 0.5,
+        "ideal_band_width": 0.20,
+        "ideal_highpass_energy_weight": 0.01,
+        "ideal_highpass_conflict_power": 1.0,
+        "aptc_local_teacher": False,
+    },
+}
 EXPERIMENT_VARIANTS["v41f_strict"] = {
     "output_stem": "unified_aptc_9datasets_v41f_strict",
     "overrides": {
