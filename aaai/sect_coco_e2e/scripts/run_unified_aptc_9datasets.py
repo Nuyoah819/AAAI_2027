@@ -3299,6 +3299,25 @@ EXPERIMENT_VARIANTS["v44a_conflict_coupled_topology"] = {
         "v44_corr_eps": 1e-8,
     },
 }
+EXPERIMENT_VARIANTS["v44b_pre_normalization_frequency_response"] = {
+    "output_stem": "unified_aptc_9datasets_v44b_pre_normalization_frequency_response",
+    "overrides": {
+        **EXPERIMENT_VARIANTS["v28b"]["overrides"],
+        "aptc_local_teacher": False,
+        "v43b_conflict_margin_weight": 0.0,
+        "v43b_band_conflict_weight": 0.0,
+        "v43b_highpass_energy_weight": 0.0,
+        "ideal_signed_embedding_weight": 0.0,
+        "ideal_band_resolution_weight": 0.0,
+        "ideal_highpass_energy_weight": 0.0,
+        "v44_topology_band_resolution_weight": 0.0,
+        "v44_conflict_highpass_corr_weight": 0.0,
+        "v44b_pre_hp_corr_weight": 0.01,
+        "v44b_conflict_beta": 0.5,
+        "v44b_target_corr": 0.05,
+        "v44b_corr_eps": 1e-8,
+    },
+}
 EXPERIMENT_VARIANTS["v41f_strict"] = {
     "output_stem": "unified_aptc_9datasets_v41f_strict",
     "overrides": {

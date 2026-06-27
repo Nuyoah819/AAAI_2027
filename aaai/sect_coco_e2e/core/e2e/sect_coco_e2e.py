@@ -252,6 +252,10 @@ class E2ESECTCoCoConfig:
     v44_conflict_beta: float = 0.5
     v44_target_corr: float = 0.05
     v44_corr_eps: float = 1e-8
+    v44b_pre_hp_corr_weight: float = 0.0
+    v44b_conflict_beta: float = 0.5
+    v44b_target_corr: float = 0.05
+    v44b_corr_eps: float = 1e-8
     init_bootstrap_mode: str = "embedding"
     init_bootstrap_dim: int = 0
     mid_init_epoch: int = -1
@@ -1244,6 +1248,78 @@ def v44_conflict_coupled_highpass_regularizer(
     return loss, stats
 
 
+def v44b_pre_highpass_response_regularizer(
+    pre_hp_response: torch.Tensor,
+    edge_index: torch.Tensor,
+    hetero: torch.Tensor,
+    hard: torch.Tensor,
+    low_view: torch.Tensor,
+    high_view: torch.Tensor,
+    *,
+    beta: float = 0.5,
+    target_corr: float = 0.05,
+    eps: float = 1e-8,
+) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+    n = pre_hp_response.shape[0]
+    src, dst = edge_index
+    edge_conflict = (hetero + float(beta) * hard).detach().clamp(0.0, 1.0)
+    node_mass = pre_hp_response.new_zeros(n)
+    node_degree = pre_hp_response.new_zeros(n)
+    node_mass.index_add_(0, src, edge_conflict)
+    node_mass.index_add_(0, dst, edge_conflict)
+    node_degree.index_add_(0, src, torch.ones_like(edge_conflict))
+    node_degree.index_add_(0, dst, torch.ones_like(edge_conflict))
+    valid = node_degree > 0
+    node_conflict = node_mass / node_degree.clamp_min(1.0)
+    response = torch.nan_to_num(pre_hp_response, nan=0.0, posinf=0.0, neginf=0.0).clamp_min(0.0)
+    if bool(valid.sum() > 1):
+        conflict_valid = node_conflict[valid]
+        response_valid = response[valid]
+        centered_conflict = conflict_valid - conflict_valid.mean()
+        centered_response = response_valid - response_valid.mean()
+        denom = centered_conflict.pow(2).mean().sqrt() * centered_response.pow(2).mean().sqrt()
+        corr = torch.where(
+            denom > float(eps),
+            (centered_conflict * centered_response).mean() / (denom + float(eps)),
+            response.new_tensor(0.0),
+        )
+    else:
+        corr = response.new_tensor(0.0)
+    corr = torch.nan_to_num(corr, nan=0.0, posinf=0.0, neginf=0.0)
+    loss = F.relu(response.new_tensor(float(target_corr)) - corr).pow(2)
+    conflict_median = node_conflict.detach()[valid].median() if bool(valid.any()) else node_conflict.detach().median()
+    high_conflict = node_conflict.detach() >= conflict_median
+    low_conflict = node_conflict.detach() < conflict_median
+    high_conflict_response = response.detach()[high_conflict].mean() if bool(high_conflict.any()) else response.detach().new_tensor(0.0)
+    low_conflict_response = response.detach()[low_conflict].mean() if bool(low_conflict.any()) else response.detach().new_tensor(0.0)
+    response_detached = response.detach()
+    p10 = torch.quantile(response_detached, 0.10) if response_detached.numel() > 1 else response_detached.mean()
+    p90 = torch.quantile(response_detached, 0.90) if response_detached.numel() > 1 else response_detached.mean()
+    high_sq = high_view.detach().pow(2).sum(dim=1)
+    low_sq = low_view.detach().pow(2).sum(dim=1)
+    postnorm_energy = high_sq / (low_sq + high_sq + float(eps))
+    post_high = postnorm_energy[high_conflict].mean() if bool(high_conflict.any()) else postnorm_energy.new_tensor(0.0)
+    post_low = postnorm_energy[low_conflict].mean() if bool(low_conflict.any()) else postnorm_energy.new_tensor(0.0)
+    stats = {
+        "v44b_pre_hp_loss": loss.detach(),
+        "v44b_pre_hp_response_mean": response_detached.mean(),
+        "v44b_pre_hp_response_std": response_detached.std(unbiased=False),
+        "v44b_pre_hp_response_p10": p10,
+        "v44b_pre_hp_response_p90": p90,
+        "v44b_pre_hp_response_ratio_p90_p10": p90 / p10.clamp_min(float(eps)),
+        "v44b_conflict_response_corr": corr.detach(),
+        "v44b_high_conflict_response": high_conflict_response,
+        "v44b_low_conflict_response": low_conflict_response,
+        "v44b_response_gap": high_conflict_response - low_conflict_response,
+        "v44b_node_conflict_mean": node_conflict.detach().mean(),
+        "v44b_node_conflict_std": node_conflict.detach().std(unbiased=False),
+        "v44b_postnorm_hp_energy_mean": postnorm_energy.mean(),
+        "v44b_postnorm_hp_energy_std": postnorm_energy.std(unbiased=False),
+        "v44b_postnorm_energy_gap": post_high - post_low,
+    }
+    return loss, stats
+
+
 def conflict_margin_frontend_regularizer(
     z: torch.Tensor,
     edge_index: torch.Tensor,
@@ -1402,6 +1478,14 @@ class EndToEndSECTCoCoModule(nn.Module):
         low_support_weight = ((1.0 - raw_leak_beta) * support_weight + raw_leak_beta * raw_edge_weight).clamp_min(1e-6)
         low_view = self._diffuse(z_attr, low_support_weight, steps=self.cfg.lowpass_steps)
         hetero_view = self._signed_highpass(z_attr, hetero, steps=self.cfg.highpass_steps)
+        low_smooth = normalized_spmm(self.edge_index, low_support_weight, z_attr, self.degree.numel())
+        hetero_smooth = normalized_spmm(self.edge_index, hetero.clamp_min(1e-6), z_attr, self.degree.numel())
+        hetero_mass = hetero.mean().clamp(0.05, 1.0)
+        hetero_scale = 0.5 + 3.5 * torch.sigmoid(self.highpass_scale_logit)
+        raw_high_response = (hetero_mass * hetero_scale * hetero_smooth).pow(2).sum(dim=1)
+        raw_low_response = (low_smooth - z_attr).pow(2).sum(dim=1)
+        pre_hp_response = torch.log1p(raw_high_response)
+        pre_hp_energy = raw_high_response / (raw_high_response + raw_low_response + 1e-8)
         z_cross_alignment = F.cosine_similarity(low_view, hetero_view, dim=1).mean()
         low_gate = torch.sigmoid(self.low_filter_gate)
         high_gate = torch.sigmoid(self.high_filter_gate)
@@ -1422,6 +1506,10 @@ class EndToEndSECTCoCoModule(nn.Module):
             "z_raw": z_raw,
             "low_view": low_view,
             "hetero_view": hetero_view,
+            "v44b_pre_hp_response": pre_hp_response,
+            "v44b_pre_hp_energy": pre_hp_energy,
+            "v44b_raw_high_response": raw_high_response,
+            "v44b_raw_low_response": raw_low_response,
             "z_cross_alignment": z_cross_alignment,
             "embedding": embedding,
             "score": score,
@@ -1867,6 +1955,7 @@ class EndToEndSECTCoCoModule(nn.Module):
             float(getattr(cfg, "v44_topology_band_resolution_weight", 0.0)) > 0.0
             or float(getattr(cfg, "v44_conflict_highpass_corr_weight", 0.0)) > 0.0
         )
+        v44b_enabled = float(getattr(cfg, "v44b_pre_hp_corr_weight", 0.0)) > 0.0
         v44_band_loss, v44_band_stats = v44_topology_band_resolution_regularizer(
             out["score"],
             out["low_threshold"],
@@ -1887,6 +1976,17 @@ class EndToEndSECTCoCoModule(nn.Module):
             beta=float(getattr(cfg, "v44_conflict_beta", 0.5)),
             target_corr=float(getattr(cfg, "v44_target_corr", 0.05)),
             eps=float(getattr(cfg, "v44_corr_eps", 1e-8)),
+        )
+        v44b_pre_hp_loss, v44b_stats = v44b_pre_highpass_response_regularizer(
+            out["v44b_pre_hp_response"],
+            self.edge_index,
+            out["hetero"],
+            out["hard"],
+            out["low_view"],
+            out["hetero_view"],
+            beta=float(getattr(cfg, "v44b_conflict_beta", 0.5)),
+            target_corr=float(getattr(cfg, "v44b_target_corr", 0.05)),
+            eps=float(getattr(cfg, "v44b_corr_eps", 1e-8)),
         )
         confidence_entropy_loss, confidence_entropy_stats = confidence_weighted_entropy_loss(
             q_reg,
@@ -2039,6 +2139,7 @@ class EndToEndSECTCoCoModule(nn.Module):
             + cfg.v43b_highpass_energy_weight * ideal_highpass_energy_loss
             + cfg.v44_topology_band_resolution_weight * v44_band_loss
             + cfg.v44_conflict_highpass_corr_weight * v44_highpass_loss
+            + cfg.v44b_pre_hp_corr_weight * v44b_pre_hp_loss
             + cfg.aptc_prior_entropy_weight * prior_entropy_loss
             + cfg.calib_alpha_weight * calib_alpha_loss
             + cfg.calib_mask_weight * calib_mask_loss
@@ -2163,6 +2264,22 @@ class EndToEndSECTCoCoModule(nn.Module):
             "v44_high_conflict_energy": float(v44_highpass_stats["v44_high_conflict_energy"].detach().cpu()),
             "v44_low_conflict_energy": float(v44_highpass_stats["v44_low_conflict_energy"].detach().cpu()),
             "v44_energy_gap": float(v44_highpass_stats["v44_energy_gap"].detach().cpu()),
+            "v44b_enabled": bool(v44b_enabled),
+            "v44b_pre_hp_loss": float(v44b_stats["v44b_pre_hp_loss"].detach().cpu()),
+            "v44b_pre_hp_response_mean": float(v44b_stats["v44b_pre_hp_response_mean"].detach().cpu()),
+            "v44b_pre_hp_response_std": float(v44b_stats["v44b_pre_hp_response_std"].detach().cpu()),
+            "v44b_pre_hp_response_p10": float(v44b_stats["v44b_pre_hp_response_p10"].detach().cpu()),
+            "v44b_pre_hp_response_p90": float(v44b_stats["v44b_pre_hp_response_p90"].detach().cpu()),
+            "v44b_pre_hp_response_ratio_p90_p10": float(v44b_stats["v44b_pre_hp_response_ratio_p90_p10"].detach().cpu()),
+            "v44b_conflict_response_corr": float(v44b_stats["v44b_conflict_response_corr"].detach().cpu()),
+            "v44b_high_conflict_response": float(v44b_stats["v44b_high_conflict_response"].detach().cpu()),
+            "v44b_low_conflict_response": float(v44b_stats["v44b_low_conflict_response"].detach().cpu()),
+            "v44b_response_gap": float(v44b_stats["v44b_response_gap"].detach().cpu()),
+            "v44b_node_conflict_mean": float(v44b_stats["v44b_node_conflict_mean"].detach().cpu()),
+            "v44b_node_conflict_std": float(v44b_stats["v44b_node_conflict_std"].detach().cpu()),
+            "v44b_postnorm_hp_energy_mean": float(v44b_stats["v44b_postnorm_hp_energy_mean"].detach().cpu()),
+            "v44b_postnorm_hp_energy_std": float(v44b_stats["v44b_postnorm_hp_energy_std"].detach().cpu()),
+            "v44b_postnorm_energy_gap": float(v44b_stats["v44b_postnorm_energy_gap"].detach().cpu()),
             "prior_entropy": float(prior_entropy_loss.detach().cpu()),
             "calib_alpha": float(calib_alpha_loss.detach().cpu()),
             "calib_mask": float(calib_mask_loss.detach().cpu()),
