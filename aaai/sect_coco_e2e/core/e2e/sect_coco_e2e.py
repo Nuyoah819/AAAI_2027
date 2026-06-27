@@ -237,6 +237,14 @@ class E2ESECTCoCoConfig:
     ideal_band_width: float = 0.20
     ideal_highpass_energy_weight: float = 0.0
     ideal_highpass_conflict_power: float = 1.0
+    v43b_conflict_margin_weight: float = 0.03
+    v43b_conflict_margin: float = 0.25
+    v43b_hard_conflict_weight: float = 0.5
+    v43b_uncertainty_center: float = 0.40
+    v43b_uncertainty_width: float = 0.40
+    v43b_hard_clarity_floor: float = 0.25
+    v43b_band_conflict_weight: float = 0.005
+    v43b_highpass_energy_weight: float = 0.0
     init_bootstrap_mode: str = "embedding"
     init_bootstrap_dim: int = 0
     mid_init_epoch: int = -1
@@ -1130,6 +1138,84 @@ def ideal_highpass_energy_regularizer(
     return loss, stats
 
 
+def conflict_margin_frontend_regularizer(
+    z: torch.Tensor,
+    edge_index: torch.Tensor,
+    score: torch.Tensor,
+    low_threshold: torch.Tensor,
+    high_threshold: torch.Tensor,
+    homo: torch.Tensor,
+    hetero: torch.Tensor,
+    hard: torch.Tensor,
+    q_low: torch.Tensor,
+    q_high: torch.Tensor,
+    q_refined: torch.Tensor,
+    low_view: torch.Tensor,
+    high_view: torch.Tensor,
+    *,
+    margin: float = 0.25,
+    hard_conflict_weight: float = 0.5,
+    uncertainty_center: float = 0.40,
+    uncertainty_width: float = 0.40,
+    hard_clarity_floor: float = 0.25,
+) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+    src, dst = edge_index
+    z_norm = F.normalize(z, p=2, dim=1)
+    sim = (z_norm[src] * z_norm[dst]).sum(dim=1).clamp(-1.0, 1.0)
+    structural_conflict = (hetero + float(hard_conflict_weight) * hard).clamp(0.0, 1.0)
+    mid = 0.5 * (low_threshold + high_threshold)
+    half_width = 0.5 * (high_threshold - low_threshold).abs().clamp_min(1e-6)
+    clarity = ((score - mid).abs() / (half_width + 1e-8)).clamp(0.0, 1.0)
+    clarity = torch.maximum(clarity, float(hard_clarity_floor) * hard.clamp(0.0, 1.0)).clamp(0.0, 1.0)
+    low_agree = (q_low[src] * q_low[dst]).sum(dim=1)
+    high_agree = (q_high[src] * q_high[dst]).sum(dim=1)
+    view_disagreement = F.relu(low_agree - high_agree)
+    q_entropy = _posterior_entropy(q_refined)
+    edge_entropy = 0.5 * (q_entropy[src] + q_entropy[dst])
+    uncertainty_gate = ((edge_entropy - float(uncertainty_center)) / max(1e-8, float(uncertainty_width))).clamp(0.0, 1.0)
+    gate = (structural_conflict * clarity * view_disagreement * uncertainty_gate).detach()
+    violation = F.relu(sim - float(margin))
+    loss = _weighted_mean(violation.pow(2), gate)
+    active = gate > 1e-6
+    high_conflict = structural_conflict.detach() >= 0.5
+    low_conflict = structural_conflict.detach() < 0.5
+    high_energy = high_view.pow(2).sum(dim=1) / (low_view.pow(2).sum(dim=1) + high_view.pow(2).sum(dim=1) + 1e-8)
+    edge_high_energy = 0.5 * (high_energy[src] + high_energy[dst])
+    centered_conflict = structural_conflict.detach() - structural_conflict.detach().mean()
+    centered_energy = edge_high_energy.detach() - edge_high_energy.detach().mean()
+    conflict_energy_corr = (centered_conflict * centered_energy).mean() / (
+        centered_conflict.pow(2).mean().sqrt() * centered_energy.pow(2).mean().sqrt() + 1e-8
+    )
+    band_mass = hard.detach().clamp_min(0.0).mean()
+    conflict_band_mass = (hard.detach().clamp_min(0.0) * structural_conflict.detach()).mean()
+    clear_mass = torch.maximum(homo.detach(), hetero.detach()).clamp_min(0.0).mean()
+    band_conflict_loss = (hard.clamp_min(0.0) * structural_conflict).mean()
+    stats = {
+        "v43b_conflict_gate_mean": gate.mean(),
+        "v43b_conflict_gate_std": gate.std(unbiased=False),
+        "v43b_conflict_gate_active_ratio": active.to(gate.dtype).mean(),
+        "v43b_conflict_gate_p90": torch.quantile(gate.detach(), 0.90) if gate.numel() > 1 else gate.detach().mean(),
+        "v43b_structural_conflict_mean": structural_conflict.detach().mean(),
+        "v43b_clarity_mean": clarity.detach().mean(),
+        "v43b_view_disagreement_mean": view_disagreement.detach().mean(),
+        "v43b_uncertainty_gate_mean": uncertainty_gate.detach().mean(),
+        "v43b_conflict_margin_loss": loss.detach(),
+        "v43b_conflict_margin_violation_mean": _weighted_mean(violation.detach(), gate),
+        "v43b_conflict_margin_violation_ratio": ((violation.detach() > 0.0) & active).to(gate.dtype).sum() / active.to(gate.dtype).sum().clamp_min(1.0),
+        "v43b_high_conflict_overlap": sim.detach()[high_conflict].mean() if bool(high_conflict.any()) else sim.new_tensor(0.0),
+        "v43b_low_conflict_overlap": sim.detach()[low_conflict].mean() if bool(low_conflict.any()) else sim.new_tensor(0.0),
+        "v43b_overlap_gap": (sim.detach()[high_conflict].mean() if bool(high_conflict.any()) else sim.new_tensor(0.0)) - (sim.detach()[low_conflict].mean() if bool(low_conflict.any()) else sim.new_tensor(0.0)),
+        "v43b_band_conflict_loss": band_conflict_loss.detach(),
+        "v43b_band_mass": band_mass,
+        "v43b_conflict_band_mass": conflict_band_mass,
+        "v43b_clear_mass": clear_mass,
+        "v43b_low_high_disagreement_mean": (low_agree - high_agree).detach().mean(),
+        "v43b_highpass_energy_mean": high_energy.detach().mean(),
+        "v43b_conflict_energy_corr": conflict_energy_corr,
+    }
+    return loss, stats
+
+
 class EndToEndSECTCoCoModule(nn.Module):
     def __init__(
         self,
@@ -1650,6 +1736,27 @@ class EndToEndSECTCoCoModule(nn.Module):
             out["hard"],
             conflict_power=float(getattr(cfg, "ideal_highpass_conflict_power", 1.0)),
         )
+        v43b_enabled = float(getattr(cfg, "v43b_conflict_margin_weight", 0.0)) > 0.0
+        v43b_conflict_margin_loss, v43b_stats = conflict_margin_frontend_regularizer(
+            out["embedding"],
+            self.edge_index,
+            out["score"],
+            out["low_threshold"],
+            out["high_threshold"],
+            out["homo"],
+            out["hetero"],
+            out["hard"],
+            out["q_low"],
+            out["q_high"],
+            out["q_refined"],
+            out["low_view"],
+            out["hetero_view"],
+            margin=float(getattr(cfg, "v43b_conflict_margin", 0.25)),
+            hard_conflict_weight=float(getattr(cfg, "v43b_hard_conflict_weight", 0.5)),
+            uncertainty_center=float(getattr(cfg, "v43b_uncertainty_center", 0.40)),
+            uncertainty_width=float(getattr(cfg, "v43b_uncertainty_width", 0.40)),
+            hard_clarity_floor=float(getattr(cfg, "v43b_hard_clarity_floor", 0.25)),
+        )
         confidence_entropy_loss, confidence_entropy_stats = confidence_weighted_entropy_loss(
             q_reg,
             self.edge_index,
@@ -1796,6 +1903,9 @@ class EndToEndSECTCoCoModule(nn.Module):
             + cfg.ideal_signed_embedding_weight * ideal_signed_embedding_loss
             + cfg.ideal_band_resolution_weight * ideal_band_resolution_loss
             + cfg.ideal_highpass_energy_weight * ideal_highpass_energy_loss
+            + cfg.v43b_conflict_margin_weight * v43b_conflict_margin_loss
+            + cfg.v43b_band_conflict_weight * v43b_stats["v43b_band_conflict_loss"]
+            + cfg.v43b_highpass_energy_weight * ideal_highpass_energy_loss
             + cfg.aptc_prior_entropy_weight * prior_entropy_loss
             + cfg.calib_alpha_weight * calib_alpha_loss
             + cfg.calib_mask_weight * calib_mask_loss
@@ -1875,6 +1985,28 @@ class EndToEndSECTCoCoModule(nn.Module):
             "ideal_highpass_energy_mean": float(ideal_highpass_stats["ideal_highpass_energy_mean"].detach().cpu()),
             "ideal_conflict_mean": float(ideal_highpass_stats["ideal_conflict_mean"].detach().cpu()),
             "ideal_conflict_energy_corr": float(ideal_highpass_stats["ideal_conflict_energy_corr"].detach().cpu()),
+            "v43b_enabled": bool(v43b_enabled),
+            "v43b_conflict_gate_mean": float(v43b_stats["v43b_conflict_gate_mean"].detach().cpu()),
+            "v43b_conflict_gate_std": float(v43b_stats["v43b_conflict_gate_std"].detach().cpu()),
+            "v43b_conflict_gate_active_ratio": float(v43b_stats["v43b_conflict_gate_active_ratio"].detach().cpu()),
+            "v43b_conflict_gate_p90": float(v43b_stats["v43b_conflict_gate_p90"].detach().cpu()),
+            "v43b_structural_conflict_mean": float(v43b_stats["v43b_structural_conflict_mean"].detach().cpu()),
+            "v43b_clarity_mean": float(v43b_stats["v43b_clarity_mean"].detach().cpu()),
+            "v43b_view_disagreement_mean": float(v43b_stats["v43b_view_disagreement_mean"].detach().cpu()),
+            "v43b_uncertainty_gate_mean": float(v43b_stats["v43b_uncertainty_gate_mean"].detach().cpu()),
+            "v43b_conflict_margin_loss": float(v43b_stats["v43b_conflict_margin_loss"].detach().cpu()),
+            "v43b_conflict_margin_violation_mean": float(v43b_stats["v43b_conflict_margin_violation_mean"].detach().cpu()),
+            "v43b_conflict_margin_violation_ratio": float(v43b_stats["v43b_conflict_margin_violation_ratio"].detach().cpu()),
+            "v43b_high_conflict_overlap": float(v43b_stats["v43b_high_conflict_overlap"].detach().cpu()),
+            "v43b_low_conflict_overlap": float(v43b_stats["v43b_low_conflict_overlap"].detach().cpu()),
+            "v43b_overlap_gap": float(v43b_stats["v43b_overlap_gap"].detach().cpu()),
+            "v43b_band_conflict_loss": float(v43b_stats["v43b_band_conflict_loss"].detach().cpu()),
+            "v43b_band_mass": float(v43b_stats["v43b_band_mass"].detach().cpu()),
+            "v43b_conflict_band_mass": float(v43b_stats["v43b_conflict_band_mass"].detach().cpu()),
+            "v43b_clear_mass": float(v43b_stats["v43b_clear_mass"].detach().cpu()),
+            "v43b_low_high_disagreement_mean": float(v43b_stats["v43b_low_high_disagreement_mean"].detach().cpu()),
+            "v43b_highpass_energy_mean": float(v43b_stats["v43b_highpass_energy_mean"].detach().cpu()),
+            "v43b_conflict_energy_corr": float(v43b_stats["v43b_conflict_energy_corr"].detach().cpu()),
             "prior_entropy": float(prior_entropy_loss.detach().cpu()),
             "calib_alpha": float(calib_alpha_loss.detach().cpu()),
             "calib_mask": float(calib_mask_loss.detach().cpu()),

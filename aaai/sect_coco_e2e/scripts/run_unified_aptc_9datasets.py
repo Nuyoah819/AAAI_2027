@@ -3261,6 +3261,24 @@ EXPERIMENT_VARIANTS["v43a_ideal_frontend_calibrated"] = {
         "aptc_local_teacher": False,
     },
 }
+EXPERIMENT_VARIANTS["v43b_conflict_margin_frontend"] = {
+    "output_stem": "unified_aptc_9datasets_v43b_conflict_margin",
+    "overrides": {
+        **EXPERIMENT_VARIANTS["v28b"]["overrides"],
+        "aptc_local_teacher": False,
+        "v43b_conflict_margin_weight": 0.03,
+        "v43b_conflict_margin": 0.25,
+        "v43b_hard_conflict_weight": 0.5,
+        "v43b_uncertainty_center": 0.40,
+        "v43b_uncertainty_width": 0.40,
+        "v43b_hard_clarity_floor": 0.25,
+        "v43b_band_conflict_weight": 0.005,
+        "v43b_highpass_energy_weight": 0.0,
+        "ideal_signed_embedding_weight": 0.0,
+        "ideal_band_resolution_weight": 0.0,
+        "ideal_highpass_energy_weight": 0.0,
+    },
+}
 EXPERIMENT_VARIANTS["v41f_strict"] = {
     "output_stem": "unified_aptc_9datasets_v41f_strict",
     "overrides": {
