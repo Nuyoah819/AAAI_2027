@@ -1,0 +1,221 @@
+\section{Method}
+\label{sec:method}
+
+We propose \emph{Concordant Spectral Topology Contraction} (CSTC), an end-to-end framework for attributed graph clustering under attribute-structure mismatch. Given an attributed graph $\mathcal{G}=(\mathcal{V},\mathcal{E},\mathbf{X})$ with $n=|\mathcal{V}|$ nodes, feature matrix $\mathbf{X}\in\mathbb{R}^{n\times d}$, and an observed adjacency matrix $\mathbf{A}$, the goal is to learn a cluster posterior matrix $\mathbf{Q}\in\mathbb{R}^{n\times K}$ without using node labels. CSTC is designed around the observation that an observed edge may be structurally valid but semantically noisy for clustering. Such attribute-structure mismatch creates heterophilic noisy associations that can contaminate low-pass aggregation and obscure the cluster geometry. CSTC addresses this issue by estimating edge-level concordance, contracting the reliable part of the topology in a differentiable manner, and routing the resulting topology into low- and high-frequency graph filters before a unified transport-based cluster assignment.
+
+\subsection{Overview}
+\label{subsec:method-overview}
+
+CSTC consists of four modules. The \emph{Attribute-Structure Concordance Estimator} maps each candidate edge to a soft concordance score. The \emph{Differentiable Topological Contraction} module converts this score into three differentiable edge masks corresponding to homophilic support, heterophilic conflict, and ambiguous evidence. The \emph{Concordance-Gated Spectral Decoupling} module applies low-pass filtering on reliable contracted topology and signed high-pass correction on heterophilic topology. Finally, the \emph{Reliability-Calibrated Transport Assignment} module produces a balanced clustering posterior. All modules share the same forward path, loss family, and assignment rule across datasets.
+
+\subsection{Attribute-Structure Concordance Estimation}
+\label{subsec:concordance}
+
+Let $\mathcal{C}$ be a candidate edge set that contains observed graph edges and feature-neighbor edges. For each directed candidate edge $(i,j)\in\mathcal{C}$, CSTC first obtains an attribute embedding
+\begin{equation}
+  \mathbf{z}_i = f_{\theta}(\mathbf{x}_i), \qquad
+  \mathbf{r}_i = g_{\theta}(\mathbf{x}_i),
+\end{equation}
+where $f_{\theta}$ is the trainable encoder and $g_{\theta}$ is a raw feature projection used to preserve feature-level evidence. We construct edge evidence from attribute similarity, raw feature similarity, structural role similarity, and their mismatch:
+\begin{align}
+  a_{ij} &= \frac{1+\cos(\mathbf{z}_i,\mathbf{z}_j)}{2}, \\
+  b_{ij} &= \frac{1+\cos(\mathbf{r}_i,\mathbf{r}_j)}{2}, \\
+  s_{ij} &= 1-\frac{|\log(1+d_i)-\log(1+d_j)|}
+  {\log(1+d_i)+\log(1+d_j)+1}, \\
+  \Delta_{ij} &= |a_{ij}-s_{ij}|.
+\end{align}
+Here $d_i$ denotes the observed degree of node $i$. The concordance estimator fuses these edge statistics through a learned evidence gate:
+\begin{align}
+  \boldsymbol{\alpha}_{ij}
+  &= \operatorname{softmax}(\psi_{\phi}(\mathbf{u}_{ij})), \\
+  \ell_{ij}
+  &= \operatorname{logit}\!\left(
+      \sum_{m}\alpha_{ij}^{(m)} e_{ij}^{(m)}
+     \right)
+     + \rho_{\phi}(\mathbf{u}_{ij},\boldsymbol{\alpha}_{ij}), \\
+  c_{ij} &= \sigma(\operatorname{Norm}(\ell_{ij})),
+\end{align}
+where $\mathbf{u}_{ij}$ denotes the concatenated edge statistics, $\{e_{ij}^{(m)}\}$ are evidence channels such as $a_{ij}$, $s_{ij}$ and $1-\Delta_{ij}$, and $\operatorname{Norm}(\cdot)$ is a graph-level logit re-centering operation. The score $c_{ij}\in(0,1)$ is interpreted as the current confidence that edge $(i,j)$ is concordant with the latent clustering geometry.
+
+\subsection{Differentiable Topological Contraction}
+\label{subsec:dtc}
+
+The central module in CSTC is Differentiable Topological Contraction (DTC). Rather than removing suspected noisy edges, DTC learns two ordered thresholds and assigns each edge to soft topology roles. Let
+\begin{align}
+  l &= \sigma(\omega_l), \\
+  h &= l + \delta + (1-l-\delta)\sigma(\omega_h),
+\end{align}
+where $\delta>0$ is a minimum threshold gap. For edge $(i,j)$, DTC defines
+\begin{align}
+  \tilde{m}^{+}_{ij} &= \sigma\!\left(\frac{c_{ij}-h}{\tau}\right), \\
+  \tilde{m}^{-}_{ij} &= \sigma\!\left(\frac{l-c_{ij}}{\tau}\right), \\
+  \tilde{m}^{0}_{ij} &= \sigma\!\left(\frac{c_{ij}-l}{\tau}\right)
+                       \sigma\!\left(\frac{h-c_{ij}}{\tau}\right),
+\end{align}
+followed by normalization
+\begin{equation}
+  (m^{+}_{ij},m^{-}_{ij},m^{0}_{ij})
+  =
+  \frac{(\tilde{m}^{+}_{ij},\tilde{m}^{-}_{ij},\tilde{m}^{0}_{ij})}
+  {\tilde{m}^{+}_{ij}+\tilde{m}^{-}_{ij}+\tilde{m}^{0}_{ij}+\epsilon}.
+\end{equation}
+The mask $m^{+}_{ij}$ represents reliable homophilic support, $m^{-}_{ij}$ represents heterophilic conflict or noisy association, and $m^{0}_{ij}$ keeps uncertainty inside the computation graph. Since the masks are differentiable with respect to $c_{ij}$, $\omega_l$, and $\omega_h$, gradients from the clustering objective can update the topology contraction mechanism directly.
+
+\subsection{Concordance-Gated Spectral Decoupling}
+\label{subsec:spectral-decoupling}
+
+The contracted topology is then used to build frequency-specific views. Let $\mathcal{P}(\mathbf{M})$ denote symmetric degree normalization over an edge-weight matrix $\mathbf{M}$. CSTC constructs a homophilic support matrix $\mathbf{M}^{+}$ from $m^{+}_{ij}$ and a heterophilic conflict matrix $\mathbf{M}^{-}$ from $m^{-}_{ij}$. The low-frequency view is computed by restarted diffusion over the contracted homophilic topology:
+\begin{equation}
+  \mathbf{Z}_{\mathrm{low}}
+  =
+  \operatorname{Norm}\left(
+  \frac{1}{T_l+1}
+  \sum_{t=0}^{T_l}
+  \mathbf{H}^{(t)}
+  \right),
+  \quad
+  \mathbf{H}^{(t+1)}
+  =
+  (1-\gamma)\mathcal{P}(\mathbf{M}^{+})\mathbf{H}^{(t)}
+  +\gamma\mathbf{Z},
+\end{equation}
+with $\mathbf{H}^{(0)}=\mathbf{Z}$ and restart coefficient $\gamma$. The high-frequency view is computed as a signed correction over heterophilic edges:
+\begin{equation}
+  \mathbf{Z}_{\mathrm{high}}
+  =
+  \operatorname{Norm}
+  \left(
+  \mathbf{Z}
+  -
+  \eta_h \bar{m}^{-}\mathcal{P}(\mathbf{M}^{-})\mathbf{Z}
+  \right),
+\end{equation}
+where $\bar{m}^{-}$ is the mean heterophilic mass and $\eta_h$ is a learnable scale. The final representation is produced by a shared projection:
+\begin{equation}
+  \mathbf{H}
+  =
+  \operatorname{Norm}
+  \left(
+  \Pi_{\theta}\left[
+  \mathbf{Z}\,\|\,\mathbf{Z}_{\mathrm{low}}\,\|\,\mathbf{Z}_{\mathrm{high}}
+  \right]
+  \right).
+\end{equation}
+This design makes the role of heterophilic edges explicit. A suspected noisy edge is not simply discarded; it is routed away from low-pass smoothing and used as a signed high-frequency correction when the model finds it useful.
+
+\subsection{Reliability-Calibrated Transport Assignment}
+\label{subsec:transport}
+
+Given $\mathbf{H}$, CSTC learns $K$ normalized prototypes $\mathbf{C}\in\mathbb{R}^{K\times p}$ and obtains view-specific posteriors from attribute, low-frequency, high-frequency and embedding views. For a generic view $\mathbf{V}$, the posterior is
+\begin{equation}
+  q_{ik}^{\mathbf{V}}
+  =
+  \frac{
+  \exp(\cos(\mathbf{v}_i,\mathbf{c}_k)/T)
+  }{
+  \sum_{k'=1}^{K}\exp(\cos(\mathbf{v}_i,\mathbf{c}_{k'})/T)
+  }.
+\end{equation}
+A node-wise gate mixes the view posteriors into $\mathbf{Q}_{\mathrm{mix}}$. To reduce degenerate cluster assignments, CSTC applies an entropic transport normalization:
+\begin{equation}
+  \mathbf{Q}_{\mathrm{tr}}
+  =
+  \operatorname{Sinkhorn}
+  \left(
+  \mathbf{Q}_{\mathrm{mix}},
+  \boldsymbol{\pi};
+  \varepsilon,S
+  \right),
+\end{equation}
+where $\boldsymbol{\pi}=\operatorname{softmax}(\boldsymbol{\beta})$ is a learnable cluster prior. The transported posterior is further refined by the contracted topology:
+\begin{equation}
+  \mathbf{Q}
+  =
+  \operatorname{softmax}
+  \left(
+  \log \mathbf{Q}_{\mathrm{tr}}
+  + \lambda_{+}\mathcal{P}(\mathbf{M}^{+})\mathbf{Q}_{\mathrm{tr}}
+  - \lambda_{-}\mathcal{P}(\mathbf{M}^{-})\mathbf{Q}_{\mathrm{tr}}
+  \right).
+\end{equation}
+The same posterior $\mathbf{Q}$ is used for final cluster assignment by $\hat{y}_i=\arg\max_k Q_{ik}$. CSTC does not switch between transport, teacher, K-means, or legacy heads as a function of dataset identity.
+
+\subsection{Training Objective}
+\label{subsec:objective}
+
+CSTC is trained with a label-free objective combining clustering, reconstruction, topology calibration and spectral regularization:
+\begin{equation}
+  \mathcal{L}
+  =
+  \mathcal{L}_{\mathrm{clus}}
+  + \lambda_{\mathrm{rec}}\mathcal{L}_{\mathrm{rec}}
+  + \lambda_{\mathrm{dtc}}\mathcal{L}_{\mathrm{dtc}}
+  + \lambda_{\mathrm{spec}}\mathcal{L}_{\mathrm{spec}}
+  + \lambda_{\mathrm{tr}}\mathcal{L}_{\mathrm{tr}}.
+\end{equation}
+The clustering term uses a sharpened target distribution $\mathbf{P}$ derived from the current posterior:
+\begin{equation}
+  p_{ik}
+  =
+  \frac{q_{ik}^{2}/\sum_i q_{ik}}
+  {\sum_{k'} q_{ik'}^{2}/\sum_i q_{ik'}},
+  \qquad
+  \mathcal{L}_{\mathrm{clus}}
+  =
+  \frac{1}{n}\sum_{i=1}^{n}
+  \operatorname{KL}(\mathbf{p}_i\,\|\,\mathbf{q}_i).
+\end{equation}
+The DTC calibration term prevents trivial topology partitions:
+\begin{equation}
+  \mathcal{L}_{\mathrm{dtc}}
+  =
+  \left(\frac{1}{|\mathcal{C}|}\sum_{(i,j)}m^{+}_{ij}-r_{+}\right)^2
+  +
+  \left(\frac{1}{|\mathcal{C}|}\sum_{(i,j)}m^{-}_{ij}-r_{-}\right)^2
+  +
+  \Omega(l,h),
+\end{equation}
+where $r_{+}$ and $r_{-}$ are adaptive occupancy references and $\Omega(l,h)$ regularizes threshold ordering. The spectral term encourages smoothness on reliable homophilic topology and discourages agreement over heterophilic noisy associations:
+\begin{equation}
+  \mathcal{L}_{\mathrm{spec}}
+  =
+  \frac{1}{|\mathcal{C}|}
+  \sum_{(i,j)}
+  (m^{+}_{ij}+0.2m^{0}_{ij})
+  \|\mathbf{h}_i-\mathbf{h}_j\|_2^2
+  -
+  \frac{1}{|\mathcal{C}|}
+  \sum_{(i,j)}
+  m^{-}_{ij}
+  \|\mathbf{z}^{\mathrm{high}}_i-\mathbf{z}^{\mathrm{high}}_j\|_2^2 .
+\end{equation}
+The transport regularizer includes prototype compactness and cluster-prior entropy. Auxiliary compactness or self-distillation terms may be added only as reliability-calibrated training stabilizers:
+\begin{equation}
+  \mathcal{L}_{\mathrm{aux}}
+  =
+  \frac{1}{n}\sum_i r_i
+  \operatorname{KL}
+  \left(
+  \operatorname{sg}(\mathbf{a}_i)\,\|\,\mathbf{q}_i
+  \right),
+\end{equation}
+where $r_i\in[0,1]$ is computed by a label-free reliability function and $\operatorname{sg}(\cdot)$ stops gradients through the auxiliary target. This term is not a final-label selector; it only constrains training where the model has concordant evidence.
+
+\subsection{Why CSTC Addresses Attribute-Structure Mismatch}
+\label{subsec:why-it-works}
+
+The key effect of CSTC can be seen from the role of the masks in message passing. A conventional low-pass graph filter applies approximately the same smoothing operator to all observed edges. When $\mathbf{A}$ contains mismatch-induced heterophilic associations, the smoothed representation contains a bias term proportional to
+\begin{equation}
+  \sum_{(i,j)\in\mathcal{E}_{\mathrm{noise}}}
+  A_{ij}(\mathbf{z}_j-\mathbf{z}_i),
+\end{equation}
+which can move nodes across cluster boundaries. CSTC reduces this effect by replacing the raw adjacency with a learned contracted topology:
+\begin{equation}
+  A_{ij}
+  \quad\longrightarrow\quad
+  m^{+}_{ij}A_{ij}
+  \quad\text{for low-pass aggregation},
+\end{equation}
+and by routing large-mismatch edges into the signed high-frequency channel. Thus, an edge contributes to smoothing only when its attribute and structural evidence are concordant. When the evidence is conflicting, the edge is either treated as an ambiguous relation or contributes through a correction term rather than through unconditional averaging.
+
+This argument is not a proof of universal recovery, because the latent cluster structure may be weak or the concordance estimator may be uncertain. It does, however, explains why DTC is central to the method: the model does not assume that the observed topology is either reliable or useless. It learns how strongly each edge should shape the low-frequency clustering geometry, while preserving gradients from the final posterior to the edge scoring and contraction parameters.

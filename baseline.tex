@@ -1,0 +1,91 @@
+\begin{table*}[t]
+\centering
+\caption{Main clustering results on six attributed graphs. All values are percentages. Best results are in \textbf{bold} and second-best results are \underline{underlined}.}
+\label{tab:main_results_six_updated}
+\scriptsize
+\setlength{\tabcolsep}{2.5pt}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccccccccccccccccc}
+\toprule
+\multirow{2}{*}{Method}
+& \multicolumn{3}{c}{ACM ($h=0.821$)}
+& \multicolumn{3}{c}{DBLP ($h=0.670$)}
+& \multicolumn{3}{c}{PubMed ($h=0.802$)}
+& \multicolumn{3}{c}{Wiki ($h=0.610$)}
+& \multicolumn{3}{c}{Flickr ($h=0.239$)}
+& \multicolumn{3}{c}{BlogCatalog ($h=0.401$)} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-10}\cmidrule(lr){11-13}\cmidrule(lr){14-16}\cmidrule(lr){17-19}
+& ACC & NMI & ARI & ACC & NMI & ARI & ACC & NMI & ARI & ACC & NMI & ARI & ACC & NMI & ARI & ACC & NMI & ARI \\
+\midrule
+\multicolumn{19}{l}{\textit{Classical and shallow graph clustering}} \\
+K-means & 87.80 & 61.70 & 67.40 & 67.90 & 37.30 & 31.50 & 59.40 & 30.10 & 26.70 & 47.60 & 48.60 & 26.60 & 56.27 & 45.31 & 36.07 & 37.32 & 21.18 & 15.86 \\
+SGC & 83.70 & 55.70 & 58.80 & 88.80 & 69.50 & 73.20 & 69.60 & 29.30 & 29.90 & 51.90 & 49.60 & 28.60 & 46.26 & 29.20 & 22.22 & 45.05 & 27.41 & 20.24 \\
+SGC-2 & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & 36.23 & 23.65 & 14.31 & 43.73 & 30.59 & 20.27 \\
+S$^2$GC & 84.10 & 56.80 & 59.60 & 88.30 & 69.20 & 71.90 & 71.00 & 32.90 & 33.70 & 52.10 & 52.20 & 33.00 & -- & -- & -- & -- & -- & -- \\
+GIC & 90.10 & 68.20 & 73.20 & 90.20 & 72.40 & 77.40 & 64.50 & 26.20 & 23.80 & 48.00 & 48.40 & 31.00 & -- & -- & -- & -- & -- & -- \\
+GCC & 91.30 & 71.20 & 76.00 & 91.80 & 74.50 & 80.50 & 70.50 & 32.20 & 33.10 & 53.70 & 53.50 & 31.60 & -- & -- & -- & -- & -- & -- \\
+\midrule
+\multicolumn{19}{l}{\textit{Deep graph clustering and contrastive methods}} \\
+CCGC & 87.50 & 60.80 & 66.50 & 87.90 & 68.80 & 73.00 & 63.70 & 29.30 & 27.10 & 50.70 & 47.30 & 26.00 & -- & -- & -- & -- & -- & -- \\
+HSAN & 90.10 & 67.30 & 72.90 & 87.60 & 68.50 & 72.10 & 61.60 & 27.80 & 25.60 & 54.40 & 49.10 & 33.60 & -- & -- & -- & -- & -- & -- \\
+MAGI & 91.30 & 70.50 & 75.90 & 91.10 & 74.00 & 78.90 & 60.60 & 18.60 & 17.30 & 54.90 & 51.90 & 37.10 & -- & -- & -- & -- & -- & -- \\
+AGE & -- & -- & -- & -- & -- & -- & 71.04 & 31.41 & 33.22 & -- & -- & -- & 46.14 & 31.22 & 21.21 & 60.53 & 39.99 & 32.63 \\
+DMoN & -- & -- & -- & -- & -- & -- & 59.36 & 19.77 & 17.46 & -- & -- & -- & 40.44 & 23.48 & 18.55 & 56.20 & 34.72 & 31.31 \\
+DGCluster & 90.40 & 68.70 & 73.60 & 92.10 & 75.20 & 80.90 & 41.40 & 34.70 & 24.40 & 56.40 & 50.20 & \underline{40.60} & 26.31 & 11.77 & 7.75 & 44.46 & 25.46 & 19.79 \\
+VGAE & -- & -- & -- & -- & -- & -- & 70.28 & 32.32 & 32.77 & -- & -- & -- & 34.00 & 19.20 & 12.90 & 25.09 & 6.96 & 4.24 \\
+DGI & -- & -- & -- & -- & -- & -- & 65.09 & 27.25 & 25.22 & -- & -- & -- & 18.88 & 5.29 & 2.73 & 49.19 & 27.04 & 21.21 \\
+CCA-SSG & -- & -- & -- & -- & -- & -- & 63.78 & 28.19 & 25.77 & -- & -- & -- & 27.46 & 15.52 & 6.83 & 30.91 & 15.64 & 6.24 \\
+HoLe & -- & -- & -- & -- & -- & -- & 42.87 & 0.33 & 0.42 & -- & -- & -- & 63.00 & 47.10 & 42.97 & 64.09 & 45.59 & 43.03 \\
+HGRL & -- & -- & -- & -- & -- & -- & 58.67 & 26.92 & 23.91 & -- & -- & -- & 50.32 & 37.44 & 22.81 & 58.66 & 45.29 & 32.01 \\
+\midrule
+\multicolumn{19}{l}{\textit{Recent scalable and heterophily-aware methods}} \\
+S$^2$CAG & \underline{93.50} & 75.40 & 81.40 & 93.50 & 78.80 & 84.30 & 75.30 & \underline{36.50} & \underline{41.90} & \textbf{64.40} & \textbf{55.10} & \textbf{44.90} & -- & -- & -- & -- & -- & -- \\
+FPGC & 68.40 & 37.20 & 37.00 & 92.10 & 76.20 & 80.90 & 70.20 & 33.30 & 24.40 & 56.00 & 40.50 & 20.80 & -- & -- & -- & -- & -- & -- \\
+SAGSC & 93.20 & 75.00 & 80.80 & 93.00 & 77.80 & 83.10 & 71.10 & 32.80 & 34.00 & 56.30 & 52.70 & 34.40 & -- & -- & -- & -- & -- & -- \\
+ELSS & \underline{93.50} & \underline{75.70} & \underline{81.50} & \underline{93.60} & \underline{79.20} & \underline{84.40} & \underline{75.90} & \textbf{37.30} & \underline{41.90} & \underline{61.40} & \underline{54.10} & 35.80 & 19.81 & 15.09 & 1.97 & 67.98 & 50.13 & 44.83 \\
+DGAC & -- & -- & -- & -- & -- & -- & 70.82 & 34.26 & 34.07 & -- & -- & -- & \underline{81.59} & \textbf{66.36} & \textbf{64.25} & \underline{75.21} & \underline{59.90} & \underline{54.11} \\
+\midrule
+\multicolumn{19}{l}{\textit{Ours}} \\
+CSTC (Ours) & \textbf{93.82} & \textbf{76.67} & \textbf{82.44} & \textbf{93.76} & \textbf{79.42} & \textbf{84.82} & \textbf{76.99} & \textbf{37.30} & \textbf{43.77} & 53.89 & 52.93 & 35.98 & \textbf{81.76} & \underline{65.75} & \underline{64.21} & \textbf{92.38} & \textbf{80.29} & \textbf{83.23} \\
+\bottomrule
+\end{tabular}%
+}
+\end{table*}
+
+\begin{table*}[t]
+\centering
+\caption{Expanded clustering results on heterophilic graphs. ACC/NMI baselines are from DGAC Table 4 and ARI baselines are from DGAC Appendix Table 9. All values are percentages.}
+\label{tab:heterophily_results_three}
+\scriptsize
+\setlength{\tabcolsep}{4.5pt}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lccccccccc}
+\toprule
+\multirow{2}{*}{Method}
+& \multicolumn{3}{c}{Texas ($h=0.108$)}
+& \multicolumn{3}{c}{Squirrel ($h=0.223$)}
+& \multicolumn{3}{c}{Chameleon ($h=0.235$)} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-10}
+& ACC & NMI & ARI & ACC & NMI & ARI & ACC & NMI & ARI \\
+\midrule
+\multicolumn{10}{l}{\textit{Heterophily graph clustering baselines}} \\
+AGE & 53.55 & 12.81 & 16.75 & 28.95 & 4.61 & 3.78 & 35.68 & 11.25 & 6.83 \\
+MinCutPool & 56.07 & 2.84 & 2.71 & 30.37 & 6.48 & 5.15 & 35.42 & 10.42 & 9.12 \\
+SCGC & 45.46 & 13.46 & 11.01 & 27.24 & 5.24 & 2.68 & 28.61 & 4.74 & 1.72 \\
+DMoN & 59.56 & 13.54 & 20.87 & 26.23 & 1.59 & 1.28 & 32.96 & 11.18 & 9.83 \\
+DGCluster & 41.64 & 11.60 & 4.50 & 22.71 & 0.92 & 0.32 & 31.36 & 7.56 & 5.59 \\
+VGAE & 53.55 & 12.24 & 19.03 & 23.72 & 0.99 & 0.37 & 33.29 & 10.39 & 8.35 \\
+DGI & 48.31 & 15.94 & 16.52 & 27.50 & 4.40 & 2.82 & 29.51 & 4.97 & 2.21 \\
+CCA-SSG & 55.85 & 6.81 & 5.96 & 24.55 & 2.68 & 0.98 & 26.48 & 3.32 & 1.32 \\
+DGCN & 62.19 & 22.89 & 24.89 & \underline{32.84} & \underline{9.24} & \underline{6.80} & \underline{41.64} & 16.95 & 12.78 \\
+HoLe & 46.78 & 12.54 & 6.45 & 30.33 & 4.49 & 4.47 & 34.32 & 7.17 & 4.99 \\
+HGRL & 70.27 & 41.59 & 41.12 & 30.94 & 8.52 & 6.03 & 38.73 & \underline{21.00} & \textbf{15.62} \\
+PolyGCL & 56.50 & 8.63 & 9.17 & 28.16 & 5.96 & 3.18 & 36.44 & 17.59 & 13.09 \\
+DGAC & \underline{75.08} & \underline{46.19} & \underline{53.24} & \textbf{34.43} & \textbf{12.24} & \textbf{9.32} & \textbf{42.02} & \textbf{21.99} & \underline{15.57} \\
+CSTC (Ours) & \textbf{77.05} & \textbf{52.06} & \textbf{62.00} & 26.63 & 2.41 & 1.74 & 32.94 & 15.25 & 6.69 \\
+\bottomrule
+\end{tabular}%
+}
+\end{table*}
+
+\noindent\footnotesize\textit{Notes.} ``--'' indicates that the metric was not found in the available paper tables under the same dataset/protocol. CSTC values are the latest unified APTC v105a run recorded in \texttt{results/unified\_aptc\_9datasets\_v105a\_v104a\_fast\_size\_pressure.csv}. Best and second-best marks are recomputed within each table column after adding the latest CSTC values.

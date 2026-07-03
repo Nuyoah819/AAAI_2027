@@ -1,0 +1,27 @@
+{
+  "method": "ELSS",
+  "dataset": "pubmed",
+  "n_nodes": 19717,
+  "n_edges": 44325,
+  "n_clusters": 3,
+  "metrics": {
+    "acc": 0.6599381244611249,
+    "nmi": 0.30579255829280866,
+    "ari": 0.279155676477233,
+    "f1": 0.658926824999544
+  },
+  "seconds": 5.783023118972778,
+  "config": {
+    "dataset": "pubmed",
+    "power": 20,
+    "alpha2": 5e-05,
+    "gamma": 0.005,
+    "anchors": 200,
+    "k_rank": null,
+    "d": 0.875,
+    "pagerank_adj": "norm",
+    "device": "cuda",
+    "seed": 42,
+    "output": "D:\\study\\graduate_student\\papers\\AAAI2027\\AAAI0617\\CODE\\results\\elss_pubmed_check.json"
+  }
+}

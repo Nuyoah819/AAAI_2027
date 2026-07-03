@@ -1,0 +1,465 @@
+pages 9
+
+
+--- PAGE 2 ---
+Our contributions. A vast majority of these methods Modularity. The approach of graph clustering based on
+have the limitation that they require the number of clusters maximizingthemodularityofthegraphhasbeenintroduced
+to be given as an input or they do not take full advantage by Newman (Newman 2006b). As a graph topology-based
+of the associated node attributes along with the additional measure,modularity(Newman2006b)quantifiesthediffer-
+node level information like partial availability of labels or ence between the fraction of the edges that fall within the
+samples of known pairwise memberships. To overcome clusters and the expected fraction assuming the edges have
+these challenges, we propose a framework named Deep been distributed randomly. Formally, modularity (Q) is de-
+Graph Cluster (DGCLUSTER) that eliminates the need finedasfollows:
+for a predefined number of clusters and harnesses graph Q= 1 (cid:88) (A − d i d j)δ(c ,c ) (1)
+representation learning methods that can leverage node 2m ij 2m i j
+attributes along with other available auxiliary information. ij
+Ourmajorcontributionsareasfollows. where δ(c i ,c j ) is the Kronecker delta, i.e., δ(c i ,c j ) = 1 if
+c = c and0otherwise,andc isthecommunitytowhich
+i j i
+nodeiisassigned.
+• DGCLUSTER:Wedevelopanovelframeworkthatuses The value of modularity for unweighted and undirected
+pairwise(soft)membershipsbetweennodestosolvethe graphs lies in the range [−1/2,1]. The Q value close to 0
+graph clustering problem via modularity maximization. implies that the fraction of edges inside communities is no
+Thecomplexityofourframeworkscaleslinearlywiththe betterthanarandomdistribution,andhighervaluesusually
+sizeofthegraph. correspondtoastrongerclusterstructure.ThemodularityQ
+• Handling Unknown Number of Clusters and Auxil- canalsobeexpressedinthematrixformasfollows:
+iaryInformation:Ourproposedmethodologycangen- 1 (cid:88) 1 1
+Q= B⊙M = Tr(BMT)= Tr(BM)
+eralize well to cases when the number of clusters is not 2m 2m 2m
+known beforehand. Our designed loss function is also ij
+(2)
+flexible towards accommodating the additional local or
+whereM isan×nsymmetricmatrixwithM =δ(c ,c )
+node-levelinformation.Thesearethemajorstrengthsof ij i j
+ourapproach. andB ij =(A ij − d 2 i m dj)iscalledthemodularitymatrix.
+• Extensive Empirical Evaluation: We conduct exten-
+Modularity maximization. Since a larger Q implies a
+siveexperimentsonsevenreal-worlddatasetsofdifferent
+prominent cluster structure, optimizing the modularity is
+sizesonfourdifferentobjectivesthatquantifythequality
+a popular way of finding good clusters. While modular-
+of clusters. Our method shows significant performance
+ity optimization is known to be NP-Hard (Brandes et al.
+gain against state-of-the-art methods in most of the set-
+2006),thereexisttechniquessuchasspectralrelaxationand
+tings.
+greedy algorithms, which permit efficient solutions (New-
+man2006a;Blondeletal.2008).
+ProblemDefinition Our goal. We achieve graph clustering via modularity
+maximization. The definition of modularity brings the idea
+We consider an undirected and unweighted graph G =
+of computing pairwise memberships allowing a natural in-
+(V,E), where V = {v ,v ,v ,...,v } is the set of n ver-
+1 2 3 n terpretationwithoutknowingthenumberofclusters.Weaim
+tices/nodes, and E = {e = (v ,v )} is the set of m
+ij i j totakeadvantageofthatandthepowerofgraphrepresenta-
+edges. The adjacency matrix of G can be represented as a
+non-negative symmetric matrix A = [A ] ∈ Rn×n where tionlearningtechniquesthatcanexploitbothstructuraland
+ij + non-structuralinformationfromgraphs.Intheexperiments,
+A = 1 if there is an edge between vertices i and j, and
+ij (cid:80) we show the efficacy of our method on four different ob-
+A = 0.Thedegreeofvertexiisdefinedasd = a .
+ij i j ij jectivesthatquantifythequalityoftheclusters:modularity
+Inaddition,wehavefeatures(orattributes)associatedwith
+(Newman2006b),conductance(YangandLeskovec2012),
+each node in the graph, X0 ∈ Rn×r where r is the size of
+Normalizedmutualinformation(NMI),andF1score.
+thefeaturevectoronnodes.
+Method: DGCLUSTER
+Graphclustering. Ourobjectiveistohaveadisjointclus-
+teringofthenodesinthegraph.Morespecifically,theprob- We present DGCLUSTER, a fully differentiable method
+lem of graph clustering is to partition the set of nodes into which performs deep graph clustering based on the graph
+k clustersorgroups{V }k (V ∩V = ∅fori ̸= j),such structure and node attributes, without the need to pre-
+i i=1 i j
+that the nodes within a cluster are more densely connected define the number of communities. The key rationale of
+than nodes belonging to different clusters. Furthermore, in ourmethodistoparameterizearelevantclusteringobjective
+thiswork,weaimtoincorporatenodeattributesinaddition (e.g., Modularity) with similarity between nodes computed
+tothegraphtopologyforgraphclustering. based on graph neural network (GNN)-based embeddings.
+Whilethereexistseveralmetricstomeasurethequalityof OurmethodDGCLUSTERconsistsoffoursteps:
+clustering such as conductance (Yang and Leskovec 2012) • Node embeddings. As the first step, DGCLUSTER ob-
+and normalized cut-ratio (Shi and Malik 2000), modularity tainsthenodeembeddingsastheoutputoftheGNNfol-
+remainsthemostpopularandwidelyusedmetricforgraph lowedbysometransformationsthathelpstoperformef-
+clusteringintheliterature(FortunatoandHric2016). ficientclustering.
+
+
+--- PAGE 5 ---
+ExperimentalResults et al. (2019), DAEGC by Wang et al. (2019), SDCN by
+Boetal.(2020),NOCDbyShchurandGu¨nnemann(2019),
+In this section, we present the performance comparison of
+DiffPool by Ying et al. (2018a), MinCutPool by Bianchi,
+DGCLUSTER with other clustering and neural community
+Grattarola,andAlippi(2020),andOrthobyBianchi,Grat-
+detection methods on 7 well-known real-world datasets.
+tarola,andAlippi(2020).
+We evaluate the algorithms using various metrics, includ-
+ing graph conductance, modularity, NMI (Normalized Mu- Performance Measures. We use our primary objective,
+tualInformation),andF1scorewherehigherscoresarede-
+modularity, as our main evaluation metric. Additionally,
+sired for the last three. Furthermore, we demonstrate the weevaluatetheperformanceusingotherimportantmetrics,
+robustness of our method against different GNN architec- namely NMI, conductance, and F1 score. In cases where a
+turesandassesstheimpactofaddingauxiliaryinformation. datasetlacksgroundtruthclusterlabels,weassignnodela-
+Wealsointroduceanadditionalregularizationobjectiveand belsastheirrespectiveclusterlabels.Wemultiplythemet-
+showitseffectonourmethod.Lastly,weillustratethenum- ricsby100forbetterreadability.
+ber of communities our method identifies for each dataset.
+Our code and implementation of DGCLUSTER is available • Modularity(Q)(Newman2006b):Thisservesasthepri-
+athttps://github.com/pyrobits/DGCluster mary objective, aiming to quantify the strength of the
+community. It achieves this by contrasting the propor-
+Datasets. We use seven publicly available real-world tion of edges within the community with a correspond-
+datasets in our experiments. Table 1 presents a summary ingfractiongeneratedfromrandomconnectionsbetween
+of the dataset statistics. Our experiments include datasets nodes.Highervaluesmeanbettercommunitypartitions.
+from well-known citation networks, namely CORA, CITE-
+• Conductance (C) (Yang and Leskovec 2012): The
+SEER, and PUBMED (Sen et al. 2008). In these networks,
+graph’sconductancemeasurestheportionoftotaledges
+nodes correspond to individual papers, edges represent ci-
+that goes outside the community. Lower values indicate
+tations between papers, and features are extracted using a
+bettercommunitypartitions.
+bag-of-wordsapproachappliedtopaperabstracts.Thetopic
+of each paper is captured through node labels. Besides ci- • Normalizedmutualinformation(NMI):WeusetheNMI
+tation networks, we use two co-purchase networks, AMA- as a label-based metric between the cluster assignments
+ZON PC and AMAZON PHOTO (Shchuretal.2018).These and true labels of the nodes. Higher values mean better
+networks include products as nodes, with edges denoting communitypartitions.
+co-purchaserelationships.Featuresareextractedfromprod- • F1 score: We calculate the pairwise F1 score based on
+uctreviews,whilenodelabelsshowproductcategories.Our foundpairwisenodemembershipsandtheircorrespond-
+last two datasets, COAUTHOR CS and COAUTHOR PHY ingclusters.SinceitisO(N2),wesample1000nodesto
+(Shchuretal.2018;ShchurandGu¨nnemann2019),areco- calculate this. Higher values indicate better community
+authorship networks for computer science and physics, re- partitions.
+spectively. Within these networks, nodes correspond to au-
+thors,andedgesindicateco-authorshipbetweenthem.Node Other Settings. In our experiments, we employ a GCN
+features are keywords extracted from authors’ publications having two hidden layers of 256 and 128 nodes and an
+andnodelabelsaretheirfieldsofstudy. output dimension of 64, across all datasets. We showcase
+outcomes for various λ values. This enables a compara-
+tive analysis among the graph structure-based metrics and
+|V| |E| |X| |Y|
+graphattribute-basedmetrics.WeuseAdamoptimizerwith
+CORA 2708 5278 1433 7 alearningratesetto0.001,andwesetthenumberofepochs
+CITESEER 3327 4552 3703 6 to 300. Our tables and figures report average scores over
+PUBMED 19717 44324 500 3 10differentruns,usingdifferentseeds,forourmethod.For
+AMAZONPC 13752 245861 767 10 baselines,wereporttheresultsfromTsitsulinetal.(2023).
+AMAZONPHOTO 7650 119081 745 8
+COAUTHORCS 18333 81894 6805 15
+Performance
+COAUTHORPHY 34493 247962 8415 5
+Table 2 and 3 show that our method achieves superior or
+Table1:Statisticsofthedatasets.|V|,|E|,|X|,and|Y|de- comparableresultscomparedtothebaselinesacrossalleval-
+notethenumberofnodes,edges,features,andnodelabels. uationmetricsanddatasets.Notably,ourmethodstandsout
+with significant improvements in unsupervised graph eval-
+uation topology-based metrics such as graph conductance,
+Baselines. Ourbaselinemethodsconsistofarangeofclas- and modularity (Table 2). Our auxiliary objective also pro-
+sicalclusteringalgorithms,suchask-means,aswellasstate- videsflexibilitybytuningthehyperparameterλtooptimize
+of-the-art graph community detection algorithms. For con- NMI and F1 score to have better results compared to the
+sistent comparison, we adopted the same baseline setting baselines (Table 3). While our method has a superior per-
+as in the recent DMoN (Tsitsulin et al. 2023): k-means formanceinco-purchaseandco-authorshipnetworksunder
+basedonfeatures,SBMbyPeixoto(2014),k-meansbased allfourmetrics,ithasareasonablygoodperformanceinthe
+on DeepWalk by Perozzi, Al-Rfou, and Skiena (2014), k- citationnetworks.Thisshowsthegeneralizabilityofoural-
+means(DGI) by Velicˇkovic´ et al. (2018), AGC by Zhang gorithmindifferenttypesofnetworks.
+
+
+--- PAGE 6 ---
+CORA CITESEER PUBMED AMAZONPC AMAZONPHOTO COAUTHORCS COAUTHORPHY
+method C↓ Q↑ C↓ Q↑ C↓ Q↑ C↓ Q↑ C↓ Q↑ C↓ Q↑ C↓ Q↑
+k-m(feat) 61.7 19.8 60.5 30.3 55.8 33.4 84.5 5.4 79.6 10.5 49.1 23.1 57.0 19.4
+SBM 15.4 77.3 14.2 78.1 39.0 53.5 31.0 60.8 18.6 72.2 20.3 72.7 25.9 66.9
+k-m(DW) 62.1 30.7 68.1 24.3 16.6 75.3 67.6 11.8 60.6 22.9 33.1 59.4 44.7 47.0
+AGC 48.9 43.2 41.9 50.0 44.9 46.8 43.2 42.8 35.3 33.8 41.5 40.1 N/A N/A
+SDCN 37.5 50.8 20.0 62.3 22.4 50.3 25.1 45.6 19.7 53.3 33.0 55.7 32.1 52.8
+DAEGC 56.8 33.5 47.6 36.4 53.6 37.5 39.0 43.3 19.3 58.0 39.4 49.1 N/A N/A
+k-m(DGI) 28.0 64.0 17.5 73.7 82.9 9.6 61.9 22.8 51.5 35.1 35.1 57.8 38.6 51.2
+NOCD 14.7 78.3 6.8 84.4 21.7 69.6 26.4 59.0 13.7 70.1 20.9 72.2 25.7 65.5
+DiffPool 26.1 66.3 26.0 63.4 32.9 56.8 35.6 30.4 26.5 46.8 33.6 59.3 N/A N/A
+MinCutPool 23.3 70.3 14.1 78.9 29.6 63.1 N/C N/C N/C N/C 22.7 70.5 27.8 64.3
+Ortho 28.0 65.6 18.4 74.5 57.8 32.9 N/C N/C N/C N/C 27.8 65.7 33.0 59.5
+DMoN 12.2 76.5 5.1 79.3 17.7 65.4 18.0 59.0 12.7 70.1 17.5 72.4 18.8 65.8
+DGCLUSTER(λ=0.0) 8.4 80.7 5.5 87.2 20.6 72.5 17.4 61.3 7.5 70.9 14.6 74.3 20.6 67.5
+DGCLUSTER(λ=0.2) 9.7 80.8 4.1 87.4 20.4 72.8 17.7 61.5 8.6 71.6 15.3 74.2 22.3 67.3
+DGCLUSTER(λ=0.8) 14.5 78.6 6.5 86.3 24.6 71.2 27.3 60.3 12.4 71.6 18.1 73.3 21.3 66.0
+Table2:PerformanceacrossdatasetsevaluatedusinggraphconductanceC andgraphmodularityQ,withthreeλsettings(0,
+0.2, 0.8)from our method.The best andsecond-best methods are highlighted in bold and underlined for eachdataset-metric
+pair.Wefixedtheoptimalλvalueperdatasetinourmethod(i.e.,0.0or0.2)duringcomparison,andourmethoddemonstrates
+thebestorcomparableperformancetothebaselines.Unavailableresultsandnon-convergencearelabeledasN/AandN/C.
+CORA CITESEER PUBMED AMAZONPC AMAZONPHOTO COAUTHORCS COAUTHORPHY
+method NMI↑ F1↑ NMI↑ F1↑ NMI↑ F1↑ NMI↑ F1↑ NMI↑ F1↑ NMI↑ F1↑ NMI↑ F1↑
+k-m(feat) 18.5 27.0 24.5 29.2 19.4 24.4 21.1 19.2 28.8 19.5 35.7 39.4 30.6 42.9
+SBM 36.2 30.2 15.3 19.1 16.4 16.7 48.4 34.6 59.3 47.4 58.0 47.7 45.4 30.4
+k-m(DW) 24.3 24.8 27.6 24.8 22.9 17.2 38.2 22.7 49.4 33.8 72.7 61.2 43.5 24.3
+AGC 34.1 28.9 25.5 27.5 18.2 18.4 51.3 35.3 59.0 44.2 43.3 31.9 N/A N/A
+SDCN 27.9 29.9 31.4 41.9 19.5 29.9 24.9 45.2 41.7 45.1 59.3 54.7 50.4 39.9
+DAEGC 8.3 13.6 4.3 18.0 4.4 11.6 42.5 37.3 47.6 45.0 36.3 32.4 N/A N/A
+k-m(DGI) 52.7 40.1 40.4 39.4 22.0 26.4 22.6 15.0 33.4 23.6 64.6 51.9 51.0 30.6
+NOCD 46.3 36.7 20.0 24.1 25.5 20.8 44.8 37.8 62.3 60.2 70.5 56.4 51.9 28.7
+DiffPool 32.9 34.4 20.0 23.5 20.2 26.3 22.1 38.3 35.9 41.8 41.6 34.4 N/A N/A
+MinCut 35.8 25.0 25.9 20.1 25.4 15.8 N/C N/C N/C N/C 64.6 47.8 48.3 24.9
+Ortho 38.4 26.6 26.1 20.5 20.3 13.9 N/C N/C N/C N/C 64.6 46.1 44.7 23.7
+DMoN 48.8 48.8 33.7 43.2 29.8 33.9 49.3 45.4 63.3 61.0 69.1 59.8 56.7 42.4
+DGCLUSTER(λ=0.0) 49.9 42.0 26.3 20.0 24.9 29.0 51.0 47.5 68.0 64.3 72.0 72.3 54.7 40.7
+DGCLUSTER(λ=0.2) 53.0 43.5 30.3 22.2 27.6 30.1 53.8 49.5 73.0 70.7 76.1 77.3 59.0 41.9
+DGCLUSTER(λ=0.8) 62.1 54.5 41.0 32.2 32.6 34.6 60.4 52.2 77.3 75.9 82.1 83.5 65.7 49.2
+Table 3: Performance across datasets evaluated using NMI and F1-score metrics, with three λ settings (0, 0.2, 0.8) from our
+method. The best and second-best methods are highlighted in bold and underlined for each dataset-metric pair. We fixed the
+optimalλvalueperdatasetinourmethod(i.e.,0.8)duringcomparison,andourmethoddemonstratesthebestorcomparable
+performanceacrossmostdatasets.Unavailableresultsandnon-convergencearelabeledasN/AandN/C.
+C Q NMI F1
+GCN GAT GIN SAGE GCN GAT GIN SAGE GCN GAT GIN SAGE GCN GAT GIN SAGE
+CORA 9.7 10.2 7.3 8.5 80.8 80.8 80.2 78.4 53.0 51.9 53.2 53.4 43.5 41.3 46.7 51.9
+CITESEER 4.1 4.1 4.5 4.8 87.4 87.4 87.3 84.8 30.3 29.4 29.5 32.5 22.2 21.9 21.9 34.0
+PUBMED 20.4 19.1 15.6 10.4 72.8 73.8 75.0 72.4 27.6 26.1 25.7 27.9 30.1 26.8 29.2 40.5
+AMAZONPC 17.7 23.4 21.3 11.1 61.5 61.4 54.3 55.1 53.8 52.9 35.4 45.0 49.5 45.3 42.3 52.2
+AMAZONPHOTO 8.6 8.5 6.9 5.2 71.6 72.1 69.9 63.8 73.0 72.1 61.8 60.6 70.7 69.4 60.6 58.2
+COAUTHORCS 15.3 15.7 14.7 13.6 74.2 74.0 73.8 73.0 76.1 75.7 71.8 72.4 77.3 79.0 72.6 74.4
+COAUTHORPHYSICS 22.3 20.3 18.5 14.5 67.3 67.1 66.7 66.0 59.0 59.2 59.7 64.0 41.9 43.4 48.7 55.9
+AVERAGE 14.0 14.5 12.7 9.7 73.6 73.8 72.5 70.5 53.3 52.5 48.2 50.8 47.9 46.7 46.0 52.4
+Table4:PerformanceofourmethodwithvariousGNNbasemodelsassessedacrossdifferentmetricsforalldatasets,alongwith
+thecalculationofaverageperformanceacrossdatasets.Notably,theperformanceremainsconsistentacrossdifferentvariantsof
+GNNmodels,demonstratingtheabsenceofaclearwinner.ThisshowstherobustnessofourmodelinadaptingtodiverseGNN
+architectures.Foreachdataset,weemphasizeperformancevariations:aperformanceincreaseofmorethan5ishighlightedin
+bold,whileadecreaseismarkedwithanunderline,bothincomparisontoGCN.Similarly,intheaveragerow,weidentifythe
+best-performingGNNbasemodelinboldandtheworst-performingwithanunderline,consideringallmetricsacrossdatasets.
+
+
+--- PAGE 7 ---
+RobustnessonDifferentBaseGNNs AdditionalRegularization Inadditiontotheprimaryand
+the auxiliary information objective terms, we propose an-
+Weconductexperimentstotesttherobustnessofourmethod
+otherregularizationterm,thesquaredaveragenodesimilar-
+towards different GNNs including GAT (Velickovic et al.
+ity, α( 1 (cid:80) ⟨X X ⟩)2 = α∥X¯∥4, where X¯ is the mean
+2017), GIN (Xu et al. 2018), and GraphSAGE (Hamilton, n2 ij i j 2
+of the node embedding vectors and α is a tunable parame-
+Ying, and Leskovec 2017). Table 4 indicates that the se-
+ter.Thisregularizercanbeusedtoavoidtheformationofa
+lection of the GNN model does not significantly alter the
+trivial clustering where all the nodes form a single cluster.
+performanceofourmethodintermsoftheevaluationmea-
+Table5showsthataddingthisregularizerhaveanegligible
+sures. The average performance across datasets for differ-
+effectonourmainobjectiveswhileavoidingpotentialtrivial
+ent metrics and GNN bases reveals specific enhancements:
+GATimprovesQ,GraphSAGEenhancesCandF1scoreson clustering.
+average. Conversely, GIN results into general performance
+degradation.
+50
+ NMI 40
+1.0
+0.85 0.8 30
+0.8
+0.80 0.7 20
+0.07.56 0.6
+10
+0.5
+0.07.04
+0.65 0.4 0.0 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8
+0.2 0.3
+0.60
+0.0
+0.00.0 0.1 0.2 0.30.20.4 0.5 0.6 0.70.40.8 0.00.60.1 0.2 0.3 0.40.80.5 0.6 0.7 0.81.0
+λ
+Cora PubMed Amazon Photo Coauthor PHY
+CiteSeer Amazon PC Coauthor CS
+Figure1:Effectofauxiliaryinformationondifferentmetrics
+and datasets with varying λ. As expected, Q tends to de-
+creaseasλincreasessinceQisdependentonlyonthegraph
+structurewhereasλaddsweighttothelabel-basedloss.The
+NMI increases as λ increases since NMI is directly related
+tolabels.
+AuxiliaryInformationEffect
+Tochecktheeffectofourauxiliaryinformation,wevarythe
+λhyperparameterinouradditionalexperiments.Figure1il-
+lustratestheimpactofthehyperparameterondifferentmet-
+ricsanddatasets.Themaingoaloftheλparameteristofind
+thebestunderlyingpartitionleveragingbothgraphstructure
+and auxiliary information. We can see modularity Q has a
+consistentvalueoverincreasedλ,whileNMIvaluesarein-
+creasing with a good amount. This shows the power of our
+auxiliaryobjectivewhichensuresflexibilitytotheuseraim-
+ing to optimize their desired metric. Additionally, the stan-
+darddeviationofourresultsissmallshowingthestabilityof
+ouralgorithm.
+CORA CITESEER PUBMED
+DGCLUSTER Q↑ NMI↑ Q↑ NMI↑ Q↑ NMI↑
+α=0.0 80.8 43.5 87.4 22.2 72.8 30.1
+α=0.5 80.8 40.3 87.3 20.3 72.1 28.1
+α=1.0 80.8 38.5 87.4 19.5 71.7 26.3
+Table5:Performanceofourmethodwithvaryingαregular-
+izationparameter.Additionalregularizationhasanegligible
+effectwhileavoidingpotentialtrivialclustering.
+seitinummoC#
+1.0
+0.8
+0.6
+0.4
+0.2
+0.0 0.0 0.2 0.4 0.6 0.8 1.0
+λ
+Cora PubMed Amazon Photo Coauthor PHY
+CiteSeer Amazon PC Coauthor CS
+Figure 2: The number of communities varying λ hyperpa-
+rameter for different datasets. We observe that the number
+of communities found is similar across different λ values
+exceptinsomecases.
+NumberofCommunities
+Ourmethoddoesnotassumethenumberofcommunitiesin
+thedata,whichisoneofitsmainstrengths.Thenumberof
+communitiesinreal-worlddataisgenerallyunknown,andit
+isnontrivialtoestimateit.Tosharesomeinsight,weprovide
+thenumberofcommunitiesourmethodfindsacrossdiffer-
+entdatasetsandλvalues.Figure2demonstratesthenumber
+ofcommunitiesvariesfordifferentdatasets,andtheresults
+areconsistentacrossdifferentλvalues.
+Conclusion
+In this paper, we have studied the problem of graph clus-
+tering via maximizing modularity. The existing techniques
+oftenrequirethenumberofclustersbeforehandortheyfail
+tocapitalizeonthepotentialbenefitsofassociatednodeat-
+tributes and availability of supplementary information. To
+address these, we have introduced DGCLUSTER, a novel
+neuralframeworkthatworkswellwithoutapredefinednum-
+berofclusters.Moreover,ourframeworkusesgraphneural
+networks (GNNs) to leverage the node attributes and addi-
+tional information present within the graph. The computa-
+tional complexity of DGCLUSTER scales linearly with the
+graphsize.Throughextensiveexperimentationacrossseven
+real-worlddatasetsofvaryingsizesandemployingmultiple
+distinct cluster quality evaluation metrics, we have show-
+casedthesuperiorperformanceof DGCLUSTER:itconsis-
+tently has outperformed state-of-the-art approaches across
+mostofthesettings.
+
+
+--- PAGE 8 ---
+Acknowledgments Mandaglio, D.; Amelio, A.; and Tagarelli, A. 2018. Con-
+sensus community detection in multilayer networks using
+Thismaterialisbaseduponworkpartiallysupportedbythe
+parameter-free graph pruning. In Advances in Knowledge
+NationalScienceFoundationundergrantno.2229876andin
+DiscoveryandDataMining:22ndPacific-AsiaConference,
+partbyfundsprovidedbytheNationalScienceFoundation,
+PAKDD 2018, Melbourne, VIC, Australia, June 3-6, 2018,
+DepartmentofHomelandSecurity,andIBM.
+Proceedings,PartIII22,193–205.Springer.
+References Moradi,P.;Ahmadian,S.;andAkhlaghian,F.2015. Anef-
+fective trust-based recommendation method using a novel
+Bhatia,V.;andRani,R.2018.Dfuzzy:adeeplearning-based graph clustering algorithm. Physica A: Statistical mechan-
+fuzzy clustering model for large graphs. Knowledge and icsanditsapplications,436:462–481.
+InformationSystems,57:159–181.
+Newman,M.E.2006a. Findingcommunitystructureinnet-
+Bianchi,F.M.;Grattarola,D.;andAlippi,C.2020. Spectral works using the eigenvectors of matrices. Physical review
+clusteringwithgraphneuralnetworksforgraphpooling. In E,74(3):036104.
+International Conference on Machine Learning, 874–883.
+Newman, M. E. 2006b. Modularity and community struc-
+PMLR.
+ture in networks. Proceedings of the national academy of
+Blondel,V.D.;Guillaume,J.-L.;Lambiotte,R.;andLefeb- sciences,103(23):8577–8582.
+vre, E. 2008. Fast unfolding of communities in large net-
+Newman,M.E.;andGirvan,M.2003. Mixingpatternsand
+works. Journalofstatisticalmechanics:theoryandexperi- community structure in networks. In Statistical mechanics
+ment,2008(10):P10008.
+ofcomplexnetworks,66–87.Springer.
+Bo,D.;Wang,X.;Shi,C.;Zhu,M.;Lu,E.;andCui,P.2020. Park, J.; Lee, M.; Chang, H. J.; Lee, K.; and Choi, J. Y.
+Structural deep clustering network. In Proceedings of the 2019. Symmetric graph convolutional autoencoder for un-
+webconference2020,1400–1410. supervisedgraphrepresentationlearning. InProceedingsof
+Brandes, U.; Delling, D.; Gaertler, M.; Go¨rke, R.; Hoefer, theIEEE/CVFinternationalconferenceoncomputervision,
+M.;Nikoloski,Z.;andWagner,D.2006. Maximizingmod- 6519–6528.
+ularityishard. arXivpreprintphysics/0608255. Peixoto, T. P. 2014. Efficient Monte Carlo and greedy
+Choong,J.J.;Liu,X.;andMurata,T.2018. Learningcom- heuristicfortheinferenceofstochasticblockmodels. Phys-
+munitystructurewithvariationalautoencoder.In2018IEEE icalReviewE,89(1):012804.
+international conference on data mining (ICDM), 69–78. Perozzi, B.; Al-Rfou, R.; and Skiena, S. 2014. Deepwalk:
+IEEE. Onlinelearningofsocialrepresentations. InProceedingsof
+the20thACMSIGKDDinternationalconferenceonKnowl-
+Felzenszwalb,P.F.;andHuttenlocher,D.P.2004. Efficient
+graph-based image segmentation. International journal of
+edgediscoveryanddatamining,701–710.
+computervision,59:167–181. Scarselli,F.;Gori,M.;Tsoi,A.C.;Hagenbuchner,M.;and
+Monfardini, G. 2008. The graph neural network model.
+Fortunato, S.; and Hric, D. 2016. Community detection in
+IEEEtransactionsonneuralnetworks,20(1):61–80.
+networks:Auserguide. Physicsreports,659:1–44.
+Sen, P.; Namata, G.; Bilgic, M.; Getoor, L.; Galligher, B.;
+Frey,B.J.;andDueck,D.2007. Clusteringbypassingmes-
+and Eliassi-Rad, T. 2008. Collective classification in net-
+sagesbetweendatapoints. science,315(5814):972–976.
+workdata. AImagazine,29(3):93–93.
+Hamilton, W.; Ying, Z.; and Leskovec, J. 2017. Inductive
+Shchur,O.;andGu¨nnemann,S.2019. Overlappingcommu-
+representationlearningonlargegraphs. Advancesinneural
+nity detection with graph neural networks. arXiv preprint
+informationprocessingsystems,30.
+arXiv:1909.12201.
+Hartigan,J.A.;andWong,M.A.1979. AlgorithmAS136:
+Shchur,O.;Mumme,M.;Bojchevski,A.;andGu¨nnemann,
+Ak-meansclusteringalgorithm. Journaloftheroyalstatis-
+S.2018. Pitfallsofgraphneuralnetworkevaluation. arXiv
+ticalsociety.seriesc(appliedstatistics),28(1):100–108.
+preprintarXiv:1811.05868.
+Kipf,T.N.;andWelling,M.2016. Semi-supervisedclassi- Shi,J.;andMalik,J.2000. Normalizedcutsandimageseg-
+fication with graph convolutional networks. arXiv preprint mentation. IEEETransactionsonpatternanalysisandma-
+arXiv:1609.02907. chineintelligence,22(8):888–905.
+Klambauer,G.;Unterthiner,T.;Mayr,A.;andHochreiter,S. Sun,J.;Zheng,W.;Zhang,Q.;andXu,Z.2021. Graphneu-
+2017.Self-normalizingneuralnetworks.Advancesinneural ral network encoding for community detection in attribute
+informationprocessingsystems,30. networks. IEEETransactionsonCybernetics,52(8):7791–
+Kulatilleke,G.K.;Portmann,M.;andChandra,S.S.2022. 7804.
+SCGC: Self-supervised contrastive graph clustering. arXiv Tsitsulin,A.;Palowitch,J.;Perozzi,B.;andMu¨ller,E.2023.
+preprintarXiv:2204.12656. Graph clustering with graph neural networks. Journal of
+Liu, Y.; Yang, X.; Zhou, S.; Liu, X.; Wang, S.; Liang, K.; MachineLearningResearch,24(127):1–21.
+Tu, W.; and Li, L. 2023. Simple contrastive graph cluster- Velickovic,P.;Cucurull,G.;Casanova,A.;Romero,A.;Lio,
+ing. IEEE Transactions on Neural Networks and Learning P.; Bengio,Y.; et al.2017. Graph attention networks. stat,
+Systems. 1050(20):10–48550.
+
+
+--- PAGE 9 ---
+Velicˇkovic´,P.;Fedus,W.;Hamilton,W.L.;Lio`,P.;Bengio,
+Y.; and Hjelm, R. D. 2018. Deep graph infomax. arXiv
+preprintarXiv:1809.10341.
+Wang, C.; Pan, S.; Hu, R.; Long, G.; Jiang, J.; and Zhang,
+C.2019.Attributedgraphclustering:Adeepattentionalem-
+beddingapproach. arXivpreprintarXiv:1906.06532.
+Wang, C.; Pan, S.; Long, G.; Zhu, X.; and Jiang, J. 2017.
+Mgae:Marginalizedgraphautoencoderforgraphclustering.
+InProceedingsofthe2017ACMonConferenceonInforma-
+tionandKnowledgeManagement,889–898.
+Wang,J.;Li,M.;Chen,J.;andPan,Y.2010. Afasthierar-
+chicalclusteringalgorithmforfunctionalmodulesdiscovery
+inproteininteractionnetworks. IEEE/ACMTransactionson
+ComputationalBiologyandBioinformatics,8(3):607–620.
+Wu, L.; Zhang, Q.; Chen, C.-H.; Guo, K.; and Wang, D.
+2020. Deep learning techniques for community detection
+insocialnetworks. IEEEAccess,8:96016–96026.
+Xia,W.;Wang,Q.;Gao,Q.;Zhang,X.;andGao,X.2021.
+Self-supervisedgraphconvolutionalnetworkformulti-view
+clustering. IEEE Transactions on Multimedia, 24: 3182–
+3192.
+Xu, K.; Hu, W.; Leskovec, J.; and Jegelka, S. 2018.
+How powerful are graph neural networks? arXiv preprint
+arXiv:1810.00826.
+Yang, J.; and Leskovec, J. 2012. Defining and evaluating
+network communities based on ground-truth. In Proceed-
+ings of the ACM SIGKDD Workshop on Mining Data Se-
+mantics,1–8.
+Yang,L.;Cao,X.;He,D.;Wang,C.;Wang,X.;andZhang,
+W.2016. Modularitybasedcommunitydetectionwithdeep
+learning. InIJCAI,volume16,2252–2258.
+Ying, R.; He, R.; Chen, K.; Eksombatchai, P.; Hamilton,
+W.L.;andLeskovec,J.2018a. Graphconvolutionalneural
+networksforweb-scalerecommendersystems. InProceed-
+ingsofthe24thACMSIGKDDinternationalconferenceon
+knowledgediscovery&datamining,974–983.
+Ying, Z.; You, J.; Morris, C.; Ren, X.; Hamilton, W.; and
+Leskovec,J.2018b.Hierarchicalgraphrepresentationlearn-
+ingwithdifferentiablepooling.Advancesinneuralinforma-
+tionprocessingsystems,31.
+Yue,L.;Jun,X.;Sihang,Z.;Siwei,W.;Xifeng,G.;Xihong,
+Y.;Ke,L.;Wenxuan,T.;Wang,L.X.;etal.2022. Asurvey
+ofdeepgraphclustering:Taxonomy,challenge,andapplica-
+tion. arXivpreprintarXiv:2211.12875.
+Zhang, M.; and Chen, Y. 2018. Link prediction based on
+graphneuralnetworks. Advancesinneuralinformationpro-
+cessingsystems,31.
+Zhang,T.;Ramakrishnan,R.;andLivny,M.1996. BIRCH:
+anefficientdataclusteringmethodforverylargedatabases.
+ACMsigmodrecord,25(2):103–114.
+Zhang,X.;Liu,H.;Li,Q.;andWu,X.-M.2019. Attributed
+graph clustering via adaptive graph convolution. arXiv
+preprintarXiv:1906.01210.
+Zhou,J.;Cui,G.;Hu,S.;Zhang,Z.;Yang,C.;Liu,Z.;Wang,
+L.; Li, C.; and Sun, M. 2020. Graph neural networks: A
+reviewofmethodsandapplications. AIopen,1:57–81.

@@ -1,0 +1,1319 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CSTC: 属性-结构不匹配下的频谱拓扑收缩聚类</title>
+  <style>
+    :root {
+      --ink: #172033;
+      --muted: #526071;
+      --subtle: #748093;
+      --paper: #f5f7fa;
+      --panel: #ffffff;
+      --line: #d8e0ea;
+      --line-strong: #aebbc9;
+      --navy: #1d3557;
+      --blue: #2563eb;
+      --cyan: #0e7490;
+      --teal: #0f766e;
+      --green: #15803d;
+      --amber: #b45309;
+      --red: #be123c;
+      --violet: #6d28d9;
+      --shadow: 0 14px 36px rgba(31, 42, 68, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Inter", "Segoe UI", "Noto Sans SC", "Microsoft YaHei", Arial, sans-serif;
+      color: var(--ink);
+      background:
+        linear-gradient(180deg, #eef3f8 0, var(--paper) 380px),
+        var(--paper);
+      line-height: 1.62;
+    }
+
+    a {
+      color: inherit;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      min-height: 58px;
+      padding: 0 clamp(18px, 5vw, 70px);
+      border-bottom: 1px solid rgba(174, 187, 201, 0.72);
+      background: rgba(245, 247, 250, 0.92);
+      backdrop-filter: blur(10px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 800;
+      letter-spacing: 0;
+      white-space: nowrap;
+    }
+
+    .brand-mark {
+      width: 28px;
+      height: 28px;
+      border-radius: 7px;
+      background: conic-gradient(from 210deg, var(--teal), var(--blue), var(--red), var(--teal));
+      box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.72);
+    }
+
+    nav {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      color: #344257;
+      font-size: 14px;
+      white-space: nowrap;
+    }
+
+    nav a {
+      text-decoration: none;
+    }
+
+    nav a:hover {
+      color: var(--blue);
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(360px, 0.9fr);
+      gap: clamp(28px, 5vw, 58px);
+      align-items: center;
+      max-width: 1240px;
+      margin: 0 auto;
+      min-height: calc(100vh - 58px);
+      padding: 62px clamp(18px, 5vw, 70px) 42px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0 0 18px;
+      padding: 6px 10px;
+      border: 1px solid #b9c7d8;
+      border-radius: 999px;
+      color: #304057;
+      background: rgba(255, 255, 255, 0.62);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--teal);
+    }
+
+    h1 {
+      max-width: 880px;
+      margin: 0;
+      font-size: clamp(38px, 5.4vw, 68px);
+      line-height: 1.06;
+      letter-spacing: 0;
+      color: #111827;
+    }
+
+    .hero-subtitle {
+      max-width: 820px;
+      margin: 22px 0 0;
+      font-size: clamp(17px, 2vw, 22px);
+      color: #3a485d;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 28px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 34px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 1px solid #c7d2df;
+      background: #ffffff;
+      color: #26364d;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .pill .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--blue);
+    }
+
+    .pill:nth-child(2) .dot {
+      background: var(--green);
+    }
+
+    .pill:nth-child(3) .dot {
+      background: var(--amber);
+    }
+
+    .hero-panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.86);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .panel-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      background: #f9fbfd;
+      color: #27364c;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 1px;
+      background: var(--line);
+    }
+
+    .metric {
+      min-height: 112px;
+      padding: 16px;
+      background: #fff;
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 30px;
+      line-height: 1.1;
+      color: #111827;
+    }
+
+    .metric span {
+      display: block;
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .compact-note {
+      padding: 14px 16px 16px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    main {
+      padding: 0 clamp(18px, 5vw, 70px) 72px;
+    }
+
+    section {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 58px 0;
+      border-top: 1px solid var(--line);
+    }
+
+    section:first-child {
+      border-top: 0;
+    }
+
+    .section-kicker {
+      margin: 0 0 8px;
+      color: var(--teal);
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    h2 {
+      max-width: 960px;
+      margin: 0 0 16px;
+      font-size: clamp(26px, 3vw, 40px);
+      line-height: 1.2;
+      letter-spacing: 0;
+      color: #121a2a;
+    }
+
+    h3 {
+      margin: 0 0 8px;
+      font-size: 18px;
+      line-height: 1.32;
+      letter-spacing: 0;
+      color: #172033;
+    }
+
+    p {
+      margin: 0 0 14px;
+      color: var(--muted);
+    }
+
+    .lead {
+      max-width: 940px;
+      color: #38475c;
+      font-size: 18px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: minmax(0, 1.08fr) minmax(340px, 0.92fr);
+      gap: 28px;
+      align-items: start;
+      margin-top: 24px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 24px;
+    }
+
+    .card {
+      min-height: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: 0 8px 26px rgba(24, 32, 48, 0.05);
+      padding: 18px;
+    }
+
+    .card.tight {
+      padding: 14px;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      margin-bottom: 10px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      color: #fff;
+      background: var(--blue);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .tag.teal {
+      background: var(--teal);
+    }
+
+    .tag.green {
+      background: var(--green);
+    }
+
+    .tag.amber {
+      background: var(--amber);
+    }
+
+    .tag.red {
+      background: var(--red);
+    }
+
+    .tag.violet {
+      background: var(--violet);
+    }
+
+    .definition-box {
+      border: 1px solid #bdc9d8;
+      border-left: 5px solid var(--red);
+      border-radius: 8px;
+      background: #fff;
+      padding: 20px;
+      box-shadow: var(--shadow);
+    }
+
+    .formula {
+      overflow-x: auto;
+      margin: 16px 0 0;
+      border-radius: 8px;
+      background: #111827;
+      color: #dbeafe;
+      padding: 18px;
+      font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.78;
+      white-space: pre;
+    }
+
+    .module-flow {
+      margin-top: 28px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .flow-svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      min-height: 340px;
+      background: #fbfdff;
+    }
+
+    .flow-box {
+      fill: #ffffff;
+      stroke: #b7c4d4;
+      stroke-width: 1.4;
+      rx: 8;
+    }
+
+    .flow-box.primary {
+      stroke: #0f766e;
+      stroke-width: 2;
+    }
+
+    .flow-box.warn {
+      stroke: #be123c;
+      stroke-width: 2;
+    }
+
+    .flow-box.assign {
+      stroke: #2563eb;
+      stroke-width: 2;
+    }
+
+    .flow-title {
+      font-size: 15px;
+      font-weight: 800;
+      fill: #172033;
+    }
+
+    .flow-small {
+      font-size: 11.5px;
+      fill: #526071;
+    }
+
+    .arrow {
+      fill: none;
+      stroke: #7d8da2;
+      stroke-width: 2;
+      marker-end: url(#arrowHead);
+    }
+
+    .arrow-strong {
+      stroke: #0f766e;
+      stroke-width: 2.4;
+    }
+
+    .timeline {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 24px;
+    }
+
+    .timeline .card {
+      border-top: 4px solid var(--teal);
+    }
+
+    .timeline .card:nth-child(2) {
+      border-top-color: var(--blue);
+    }
+
+    .timeline .card:nth-child(3) {
+      border-top-color: var(--red);
+    }
+
+    .timeline .card:nth-child(4) {
+      border-top-color: var(--green);
+    }
+
+    .animation-wrap {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 310px;
+      gap: 20px;
+      align-items: stretch;
+      margin-top: 26px;
+    }
+
+    .animation-stage {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .stage-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      min-height: 52px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      background: #f9fbfd;
+    }
+
+    .stage-title {
+      font-weight: 800;
+      color: #1f2d43;
+    }
+
+    .stage-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    button {
+      border: 1px solid #b8c5d5;
+      border-radius: 7px;
+      background: #ffffff;
+      color: #243246;
+      min-height: 34px;
+      padding: 6px 10px;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    button:hover,
+    button.active {
+      border-color: var(--blue);
+      color: #ffffff;
+      background: var(--blue);
+    }
+
+    .network-svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      background:
+        linear-gradient(90deg, rgba(216, 224, 234, 0.38) 1px, transparent 1px),
+        linear-gradient(180deg, rgba(216, 224, 234, 0.38) 1px, transparent 1px),
+        #ffffff;
+      background-size: 38px 38px;
+    }
+
+    .edge {
+      stroke: #9aa8ba;
+      stroke-width: 4;
+      stroke-linecap: round;
+      opacity: 0.72;
+      transition: stroke 420ms ease, opacity 420ms ease, stroke-width 420ms ease, stroke-dasharray 420ms ease;
+    }
+
+    .edge.homo {
+      stroke: #0f766e;
+    }
+
+    .edge.hetero {
+      stroke: #be123c;
+    }
+
+    .edge.amb {
+      stroke: #b45309;
+      stroke-dasharray: 8 7;
+    }
+
+    .phase-0 .edge.homo,
+    .phase-0 .edge.hetero,
+    .phase-0 .edge.amb {
+      stroke: #8fa0b5;
+      stroke-dasharray: none;
+      stroke-width: 4;
+      opacity: 0.76;
+    }
+
+    .phase-1 .edge.homo {
+      stroke: #0f766e;
+      stroke-width: 5;
+      opacity: 0.95;
+    }
+
+    .phase-1 .edge.hetero {
+      stroke: #be123c;
+      stroke-width: 4.5;
+      opacity: 0.82;
+    }
+
+    .phase-1 .edge.amb {
+      stroke: #b45309;
+      stroke-width: 4;
+      opacity: 0.86;
+      stroke-dasharray: 8 7;
+    }
+
+    .phase-2 .edge.homo {
+      stroke: #0f766e;
+      stroke-width: 7;
+      opacity: 0.96;
+    }
+
+    .phase-2 .edge.hetero {
+      stroke: #be123c;
+      stroke-width: 2.2;
+      opacity: 0.24;
+      stroke-dasharray: 4 9;
+    }
+
+    .phase-2 .edge.amb {
+      stroke: #b45309;
+      stroke-width: 3;
+      opacity: 0.50;
+      stroke-dasharray: 7 8;
+    }
+
+    .phase-3 .edge.homo {
+      stroke: #15803d;
+      stroke-width: 6;
+      opacity: 0.96;
+    }
+
+    .phase-3 .edge.hetero {
+      stroke: #be123c;
+      stroke-width: 2;
+      opacity: 0.18;
+      stroke-dasharray: 3 10;
+    }
+
+    .phase-3 .edge.amb {
+      stroke: #2563eb;
+      stroke-width: 3.2;
+      opacity: 0.66;
+      stroke-dasharray: none;
+    }
+
+    .node {
+      stroke: #ffffff;
+      stroke-width: 4;
+      transition: transform 420ms ease, opacity 420ms ease, filter 420ms ease;
+      transform-box: fill-box;
+      transform-origin: center;
+    }
+
+    .node.a {
+      fill: #2563eb;
+    }
+
+    .node.b {
+      fill: #f97316;
+    }
+
+    .node.c {
+      fill: #7c3aed;
+    }
+
+    .phase-2 .cluster-a,
+    .phase-2 .cluster-b,
+    .phase-2 .cluster-c,
+    .phase-3 .cluster-a,
+    .phase-3 .cluster-b,
+    .phase-3 .cluster-c {
+      opacity: 0.15;
+    }
+
+    .cluster-a,
+    .cluster-b,
+    .cluster-c {
+      opacity: 0;
+      stroke: none;
+      transition: opacity 420ms ease;
+    }
+
+    .cluster-a {
+      fill: #dbeafe;
+    }
+
+    .cluster-b {
+      fill: #ffedd5;
+    }
+
+    .cluster-c {
+      fill: #ede9fe;
+    }
+
+    .confidence-line {
+      opacity: 0;
+      stroke-width: 2;
+      stroke: #111827;
+      stroke-dasharray: 5 5;
+      transition: opacity 420ms ease;
+    }
+
+    .phase-1 .confidence-line,
+    .phase-2 .confidence-line {
+      opacity: 0.28;
+    }
+
+    .phase-3 .confidence-line {
+      opacity: 0;
+    }
+
+    .phase-label {
+      fill: #172033;
+      font-size: 13px;
+      font-weight: 800;
+      opacity: 0;
+      transition: opacity 420ms ease;
+    }
+
+    .phase-2 .label-contract,
+    .phase-3 .label-rebuild,
+    .phase-1 .label-score {
+      opacity: 1;
+    }
+
+    .side-panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: var(--shadow);
+      padding: 18px;
+    }
+
+    .phase-index {
+      display: inline-flex;
+      min-width: 34px;
+      min-height: 34px;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      color: #fff;
+      background: var(--blue);
+      font-weight: 900;
+      margin-bottom: 14px;
+    }
+
+    .legend {
+      display: grid;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .legend-line {
+      width: 26px;
+      height: 4px;
+      border-radius: 999px;
+      background: #8fa0b5;
+    }
+
+    .legend-line.homo {
+      background: var(--teal);
+    }
+
+    .legend-line.hetero {
+      background: var(--red);
+    }
+
+    .legend-line.amb {
+      background: var(--amber);
+    }
+
+    .results-table {
+      overflow-x: auto;
+      margin-top: 24px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: var(--shadow);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 820px;
+    }
+
+    th,
+    td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: middle;
+      font-size: 14px;
+    }
+
+    th {
+      color: #25344a;
+      background: #eef3f8;
+      font-weight: 900;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .ok {
+      color: var(--green);
+      font-weight: 900;
+    }
+
+    .miss {
+      color: var(--red);
+      font-weight: 900;
+    }
+
+    .contribution-list {
+      display: grid;
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .claim {
+      display: grid;
+      grid-template-columns: 180px minmax(0, 1fr);
+      gap: 16px;
+      align-items: start;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 16px;
+    }
+
+    .claim strong {
+      color: #172033;
+    }
+
+    footer {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 24px clamp(18px, 5vw, 70px) 48px;
+      color: var(--subtle);
+      font-size: 13px;
+    }
+
+    @media (max-width: 980px) {
+      .hero,
+      .grid-2,
+      .animation-wrap {
+        grid-template-columns: 1fr;
+      }
+
+      .hero {
+        min-height: auto;
+      }
+
+      .timeline,
+      .grid-3 {
+        grid-template-columns: 1fr;
+      }
+
+      nav {
+        display: none;
+      }
+
+      .claim {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .metric-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .stage-top {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><span class="brand-mark" aria-hidden="true"></span><span>CSTC 汇报页</span></div>
+    <nav aria-label="页面导航">
+      <a href="#problem">问题定义</a>
+      <a href="#overview">模型总览</a>
+      <a href="#dtc">核心机制</a>
+      <a href="#animation">拓扑动画</a>
+      <a href="#results">实验结果</a>
+      <a href="#contribution">贡献边界</a>
+    </nav>
+  </div>
+
+  <header class="hero">
+    <div>
+      <p class="eyebrow">AAAI0622 课题组阶段汇报</p>
+      <h1>面向属性-结构不匹配的频谱拓扑收缩聚类模型</h1>
+      <p class="hero-subtitle">
+        最终方案围绕 `频率解耦.md` 中提出的核心问题展开：当节点属性语义与图结构连接不一致时，
+        原始邻接会把异配噪声关联混入消息传递，导致频率混叠与聚类后验漂移。
+      </p>
+      <div class="hero-actions">
+        <span class="pill"><span class="dot"></span>核心机制：可微拓扑收缩</span>
+        <span class="pill"><span class="dot"></span>统一管线：无数据集专用路由</span>
+        <span class="pill"><span class="dot"></span>最新结果：6/9 数据集 ACC 达到 SOTA</span>
+      </div>
+    </div>
+
+    <aside class="hero-panel" aria-label="最终实验摘要">
+      <div class="panel-head">
+        <span>Final unified run</span>
+        <span>v105a</span>
+      </div>
+      <div class="metric-grid">
+        <div class="metric">
+          <strong>6/9</strong>
+          <span>ACM、DBLP、PubMed、Flickr、BlogCatalog、Texas 达到 ACC SOTA</span>
+        </div>
+        <div class="metric">
+          <strong>+0.82</strong>
+          <span>PubMed ACC 相对目标提升百分点，来自无标签尺寸压力修正</span>
+        </div>
+        <div class="metric">
+          <strong>3.72%</strong>
+          <span>PubMed 中被重分配的低置信边界点比例，非标签驱动</span>
+        </div>
+      </div>
+      <div class="compact-note">
+        汇报重点不是把模型包装成万能方案，而是解释为什么“边级一致性 + 频谱解耦 + 可靠性校准读出”
+        能在多数图上缓解异配噪声关联。
+      </div>
+    </aside>
+  </header>
+
+  <main>
+    <section id="problem">
+      <p class="section-kicker">Problem definition</p>
+      <h2>核心问题：由属性-结构不匹配引发的异配噪声关联</h2>
+      <p class="lead">
+        在无监督 attributed graph clustering 中，输入图的边并不等同于语义同类关系。若属性空间显示两个节点接近，
+        但结构角色或局部拓扑显示二者属于不同语义区域，原始边就会成为异配噪声关联；反过来，结构上紧邻但属性冲突的边也会污染低通聚合。
+      </p>
+
+      <div class="grid-2">
+        <div class="definition-box">
+          <h3>形式化视角</h3>
+          <p>
+            给定图 <strong>G = (V, E, X)</strong>，每条候选边 <strong>e<sub>ij</sub></strong> 同时携带属性相似性、
+            结构接近性和局部频率响应。项目关注的不是单纯的 heterophily，而是
+            <strong>属性证据与结构证据发生冲突时产生的伪关联</strong>。
+          </p>
+          <div class="formula">s_X(i,j) = sim(f_theta(x_i), f_theta(x_j))
+s_A(i,j) = sim(g_theta(p_i), g_theta(p_j))
+gap(i,j) = |s_X(i,j) - s_A(i,j)|
+
+edge concordance c_ij = E_phi(s_X, s_A, gap, local spectrum)</div>
+        </div>
+        <div class="card">
+          <span class="tag red">为什么困难</span>
+          <h3>异配边不全是噪声，噪声边也不总是低相似</h3>
+          <p>
+            真实异配边可能提供类别边界信息；噪声边也可能在属性上高度相似。若只做硬删除，容易丢掉有用边界；
+            若直接在原图上低通平滑，又会把跨类噪声传播到簇内部。
+          </p>
+          <p>
+            因此，本项目把问题转化为边级可靠性估计：一条边应被收缩、抑制、还是暂时保留为困难证据。
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section id="overview">
+      <p class="section-kicker">Model overview</p>
+      <h2>最终模型总览：从边级一致性到可靠聚类后验</h2>
+      <p class="lead">
+        CSTC 的整体设计逻辑是：先判断边是否与当前学习到的聚类几何一致，再决定它进入低频收缩通道、
+        高频纠偏通道或困难区，最后用可靠性校准的 transport/posterior 读出聚类标签。
+      </p>
+
+      <div class="module-flow" aria-label="模型流程图">
+        <svg class="flow-svg" viewBox="0 0 1180 430" role="img">
+          <defs>
+            <marker id="arrowHead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#7d8da2"></path>
+            </marker>
+          </defs>
+
+          <rect x="24" y="70" width="150" height="98" class="flow-box"></rect>
+          <text x="48" y="105" class="flow-title">输入图</text>
+          <text x="48" y="130" class="flow-small">X: 节点属性</text>
+          <text x="48" y="150" class="flow-small">A: 原始拓扑</text>
+
+          <rect x="230" y="48" width="185" height="144" class="flow-box primary"></rect>
+          <text x="254" y="84" class="flow-title">属性-结构一致性估计</text>
+          <text x="254" y="112" class="flow-small">attribute similarity</text>
+          <text x="254" y="133" class="flow-small">role / degree evidence</text>
+          <text x="254" y="154" class="flow-small">mismatch gap</text>
+
+          <rect x="480" y="48" width="185" height="144" class="flow-box warn"></rect>
+          <text x="506" y="84" class="flow-title">可微拓扑收缩</text>
+          <text x="506" y="112" class="flow-small">homophilic mask</text>
+          <text x="506" y="133" class="flow-small">heterophilic mask</text>
+          <text x="506" y="154" class="flow-small">ambiguous mask</text>
+
+          <rect x="730" y="20" width="190" height="100" class="flow-box primary"></rect>
+          <text x="758" y="56" class="flow-title">低通收缩通道</text>
+          <text x="758" y="84" class="flow-small">只在可靠同配拓扑上平滑</text>
+
+          <rect x="730" y="150" width="190" height="100" class="flow-box warn"></rect>
+          <text x="758" y="186" class="flow-title">高通纠偏通道</text>
+          <text x="758" y="214" class="flow-small">抑制跨类噪声传播</text>
+
+          <rect x="985" y="74" width="165" height="120" class="flow-box assign"></rect>
+          <text x="1010" y="112" class="flow-title">可靠聚类读出</text>
+          <text x="1010" y="140" class="flow-small">transport assignment</text>
+          <text x="1010" y="161" class="flow-small">calibrated readout</text>
+
+          <rect x="480" y="278" width="185" height="96" class="flow-box"></rect>
+          <text x="506" y="314" class="flow-title">边置信诊断</text>
+          <text x="506" y="342" class="flow-small">homo / hetero / hard mass</text>
+
+          <rect x="732" y="284" width="188" height="90" class="flow-box"></rect>
+          <text x="758" y="318" class="flow-title">后处理安全阈</text>
+          <text x="758" y="346" class="flow-small">无标签、非数据集路由</text>
+
+          <path d="M 174 119 L 228 119" class="arrow"></path>
+          <path d="M 415 119 L 478 119" class="arrow arrow-strong"></path>
+          <path d="M 665 100 C 695 88 704 72 728 70" class="arrow arrow-strong"></path>
+          <path d="M 665 140 C 695 154 704 187 728 198" class="arrow"></path>
+          <path d="M 920 70 C 955 76 966 98 983 116" class="arrow arrow-strong"></path>
+          <path d="M 920 200 C 956 190 966 166 983 148" class="arrow"></path>
+          <path d="M 572 193 L 572 276" class="arrow"></path>
+          <path d="M 665 326 L 730 326" class="arrow"></path>
+          <path d="M 920 326 C 1018 300 1060 240 1064 196" class="arrow"></path>
+        </svg>
+      </div>
+
+      <div class="timeline">
+        <div class="card">
+          <h3>1. 边置信建模</h3>
+          <p>用属性相似、结构角色和局部差异估计边的一致性，而不是默认信任原始邻接。</p>
+        </div>
+        <div class="card">
+          <h3>2. 软拓扑划分</h3>
+          <p>用可学习阈值把边连续分配到同配、异配和困难区，避免不可导硬剪枝。</p>
+        </div>
+        <div class="card">
+          <h3>3. 频谱解耦传播</h3>
+          <p>同配通道低通收缩，异配通道高通纠偏，把噪声边从平滑主干中剥离。</p>
+        </div>
+        <div class="card">
+          <h3>4. 可靠读出</h3>
+          <p>通过统一的聚类读出与安全后处理得到标签，不使用真实标签或测试指标进行选择。</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="dtc">
+      <p class="section-kicker">Core mechanism</p>
+      <h2>可微拓扑收缩如何处理属性-结构不匹配</h2>
+      <div class="grid-2">
+        <div>
+          <p>
+            可微拓扑收缩的关键不是“删边”，而是把每条边的语义角色变成一个连续变量。
+            高一致性的边被收缩为低频同配支撑；低一致性或冲突边被送入高频纠偏支路；
+            中间区保留为困难证据，随训练逐步被分流。
+          </p>
+          <p>
+            这样处理后，属性-结构不匹配不会直接污染主消息传递路径，而是先经过边置信校准，再决定它对表示学习的贡献方向。
+          </p>
+          <div class="formula">m_homo(i,j)  = sigma((c_ij - H) / tau)
+m_hetero(i,j)= sigma((L - c_ij) / tau)
+m_hard(i,j)  = sigma((c_ij - L) / tau) * sigma((H - c_ij) / tau)
+
+Z_low  = LPF(A_homo, X)
+Z_high = X - HPF(A_hetero, X)
+Z      = fuse(Z_attr, Z_low, Z_high)</div>
+        </div>
+        <div class="card">
+          <span class="tag teal">机制解释</span>
+          <h3>从“拓扑是否可信”到“拓扑怎样使用”</h3>
+          <p>
+            对于属性相似且结构一致的边，模型增强其低频平滑权重；对于属性相似但结构矛盾的边，
+            模型降低其收缩权重，并把它作为高频冲突信号参与纠偏。
+          </p>
+          <p>
+            这种设计保留了异配边可能有用的边界信息，同时避免把异配噪声当作同类邻居扩散。
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section id="animation">
+      <p class="section-kicker">Edge heterophily challenge</p>
+      <h2>动态演示：模型如何进行拓扑修正与去噪</h2>
+      <p class="lead">
+        下图用一个小型示意图展示算法的拓扑修正过程。灰色原始边先被边置信模型识别，再通过可微拓扑收缩改变传播强度：
+        可靠同配边变粗，异配噪声边被削弱，困难边在频谱证据和聚类后验中继续被校准。
+      </p>
+
+      <div class="animation-wrap">
+        <div class="animation-stage">
+          <div class="stage-top">
+            <div class="stage-title">Topology correction animation</div>
+            <div class="stage-controls" aria-label="动画控制">
+              <button type="button" data-phase="0" class="active">原始</button>
+              <button type="button" data-phase="1">置信</button>
+              <button type="button" data-phase="2">收缩</button>
+              <button type="button" data-phase="3">重构</button>
+            </div>
+          </div>
+          <svg id="network" class="network-svg phase-0" viewBox="0 0 760 460" role="img" aria-label="拓扑修正动态图">
+            <rect x="58" y="72" width="205" height="205" rx="28" class="cluster-a"></rect>
+            <rect x="470" y="58" width="202" height="210" rx="28" class="cluster-b"></rect>
+            <rect x="263" y="247" width="246" height="155" rx="28" class="cluster-c"></rect>
+
+            <line x1="128" y1="118" x2="212" y2="166" class="edge homo"></line>
+            <line x1="128" y1="118" x2="166" y2="238" class="edge homo"></line>
+            <line x1="212" y1="166" x2="166" y2="238" class="edge homo"></line>
+
+            <line x1="548" y1="104" x2="640" y2="162" class="edge homo"></line>
+            <line x1="548" y1="104" x2="520" y2="235" class="edge homo"></line>
+            <line x1="640" y1="162" x2="520" y2="235" class="edge homo"></line>
+
+            <line x1="345" y1="314" x2="454" y2="330" class="edge homo"></line>
+            <line x1="345" y1="314" x2="404" y2="382" class="edge homo"></line>
+            <line x1="454" y1="330" x2="404" y2="382" class="edge homo"></line>
+
+            <line x1="212" y1="166" x2="548" y2="104" class="edge hetero"></line>
+            <line x1="166" y1="238" x2="520" y2="235" class="edge hetero"></line>
+            <line x1="128" y1="118" x2="345" y2="314" class="edge hetero"></line>
+
+            <line x1="212" y1="166" x2="345" y2="314" class="edge amb"></line>
+            <line x1="520" y1="235" x2="454" y2="330" class="edge amb"></line>
+            <line x1="640" y1="162" x2="454" y2="330" class="edge amb"></line>
+
+            <line x1="110" y1="58" x2="666" y2="58" class="confidence-line"></line>
+            <text x="116" y="45" class="phase-label label-score">边置信评分：同配 / 异配 / 困难区</text>
+            <text x="84" y="314" class="phase-label label-contract">低频收缩：同配边增强，噪声边减弱</text>
+            <text x="468" y="410" class="phase-label label-rebuild">结构重构：保留可靠簇内拓扑与边界证据</text>
+
+            <circle cx="128" cy="118" r="24" class="node a"></circle>
+            <circle cx="212" cy="166" r="24" class="node a"></circle>
+            <circle cx="166" cy="238" r="24" class="node a"></circle>
+
+            <circle cx="548" cy="104" r="24" class="node b"></circle>
+            <circle cx="640" cy="162" r="24" class="node b"></circle>
+            <circle cx="520" cy="235" r="24" class="node b"></circle>
+
+            <circle cx="345" cy="314" r="24" class="node c"></circle>
+            <circle cx="454" cy="330" r="24" class="node c"></circle>
+            <circle cx="404" cy="382" r="24" class="node c"></circle>
+          </svg>
+        </div>
+
+        <aside class="side-panel" aria-live="polite">
+          <div id="phaseIndex" class="phase-index">1</div>
+          <h3 id="phaseTitle">原始观测拓扑</h3>
+          <p id="phaseText">
+            原始图包含同配边、跨类异配边和语义不确定边。若直接做低通消息传递，跨类噪声会被扩散到簇内部。
+          </p>
+          <div class="legend">
+            <div class="legend-item"><span class="legend-line"></span>原始候选边</div>
+            <div class="legend-item"><span class="legend-line homo"></span>可靠同配收缩边</div>
+            <div class="legend-item"><span class="legend-line hetero"></span>异配噪声或冲突边</div>
+            <div class="legend-item"><span class="legend-line amb"></span>困难边界证据</div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section>
+      <p class="section-kicker">Mechanism details</p>
+      <h2>面对 Edge Heterophily Challenge 的去噪策略</h2>
+      <div class="grid-3">
+        <div class="card">
+          <span class="tag teal">频谱过滤</span>
+          <h3>同配低通只在可靠拓扑上发生</h3>
+          <p>
+            低通聚合不再盲目使用全图邻接，而是由同配 mask 加权。这样可以减少跨类边在平滑过程中的语义泄漏。
+          </p>
+        </div>
+        <div class="card">
+          <span class="tag red">拓扑修正</span>
+          <h3>异配边被降权而非简单删除</h3>
+          <p>
+            异配 mask 对应高频冲突支路，保留边界信息的同时削弱其作为同类传播边的作用。
+          </p>
+        </div>
+        <div class="card">
+          <span class="tag amber">边置信建模</span>
+          <h3>困难边进入可学习缓冲区</h3>
+          <p>
+            中间置信度边不被立即判死，而是随着训练中的表示、局部频率和后验一致性继续演化。
+          </p>
+        </div>
+        <div class="card">
+          <span class="tag blue">结构重构</span>
+          <h3>从原始图转向校准后的传播图</h3>
+          <p>
+            模型最终使用的是由边置信和频谱通道共同决定的有效传播结构，而不是原始邻接的直接复制。
+          </p>
+        </div>
+        <div class="card">
+          <span class="tag green">可靠读出</span>
+          <h3>避免用后处理替代核心机制</h3>
+          <p>
+            最终读出统一使用无标签证据。PubMed 的尺寸压力修正只看簇规模和嵌入边界，不使用真实标签或数据集名。
+          </p>
+        </div>
+        <div class="card">
+          <span class="tag violet">失败边界</span>
+          <h3>仍未完全解决强异配图</h3>
+          <p>
+            Wiki、Squirrel、Chameleon 仍低于目标，说明当前机制在极端异配/高噪声拓扑上的频谱纠偏还不充分。
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section id="results">
+      <p class="section-kicker">Empirical status</p>
+      <h2>最新统一实验结果：6/9 数据集 ACC 达到或超过目标</h2>
+      <p class="lead">
+        下表来自 `results/unified_aptc_9datasets_v105a_v104a_fast_size_pressure.csv` 的最后一次完整 9 数据集运行。
+        数值为百分比。当前页面只作为课题组汇报材料，不把尚未解决的数据集写成已解决。
+      </p>
+
+      <div class="results-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Dataset</th>
+              <th>ACC</th>
+              <th>NMI</th>
+              <th>ARI</th>
+              <th>ACC gap</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>ACM</td><td>93.82</td><td>76.67</td><td>82.44</td><td>+0.20</td><td class="ok">ACC SOTA</td></tr>
+            <tr><td>DBLP</td><td>93.76</td><td>79.42</td><td>84.82</td><td>+0.07</td><td class="ok">ACC SOTA</td></tr>
+            <tr><td>PubMed</td><td>76.99</td><td>37.30</td><td>43.77</td><td>+0.82</td><td class="ok">ACC SOTA</td></tr>
+            <tr><td>Wiki</td><td>53.89</td><td>52.93</td><td>35.98</td><td>-10.51</td><td class="miss">未达标</td></tr>
+            <tr><td>Flickr</td><td>81.76</td><td>65.75</td><td>64.21</td><td>+0.17</td><td class="ok">ACC SOTA</td></tr>
+            <tr><td>BlogCatalog</td><td>92.38</td><td>80.29</td><td>83.23</td><td>+0.66</td><td class="ok">ACC SOTA</td></tr>
+            <tr><td>Squirrel</td><td>26.63</td><td>2.41</td><td>1.74</td><td>-7.80</td><td class="miss">未达标</td></tr>
+            <tr><td>Texas</td><td>77.05</td><td>52.06</td><td>62.00</td><td>+1.97</td><td class="ok">ACC SOTA</td></tr>
+            <tr><td>Chameleon</td><td>32.94</td><td>15.25</td><td>6.69</td><td>-9.08</td><td class="miss">未达标</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="contribution">
+      <p class="section-kicker">Expected contribution</p>
+      <h2>预期贡献与表述边界</h2>
+      <p class="lead">
+        论文写作应强调一个清晰科学问题和一条统一机制主线，避免把实验迭代史包装成模块堆叠。
+        当前最稳妥的贡献表述如下。
+      </p>
+
+      <div class="contribution-list">
+        <div class="claim">
+          <strong>问题贡献</strong>
+          <p>将无监督图聚类中的性能退化归因到属性-结构不匹配引发的异配噪声关联，并用边级一致性进行建模。</p>
+        </div>
+        <div class="claim">
+          <strong>方法贡献</strong>
+          <p>提出可微拓扑收缩层，把候选边连续映射到同配、异配和困难区，避免硬剪枝和数据集专用拓扑选择。</p>
+        </div>
+        <div class="claim">
+          <strong>频谱贡献</strong>
+          <p>将低通平滑限制在可靠收缩拓扑上，并把异配冲突作为高频纠偏信号，从传播路径上降低频率混叠。</p>
+        </div>
+        <div class="claim">
+          <strong>实验贡献</strong>
+          <p>在统一无标签选择协议下，当前版本在 9 个数据集中 6 个达到 ACC SOTA，同时保留对未解决数据集的误差分析。</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Source: docs/background/频率解耦.md, docs/planning/idea_review_and_selection.md,
+    results/unified_aptc_9datasets_v105a_v104a_fast_size_pressure.csv.
+  </footer>
+
+  <script>
+    const phases = [
+      {
+        title: "原始观测拓扑",
+        text: "原始图包含同配边、跨类异配边和语义不确定边。若直接做低通消息传递，跨类噪声会被扩散到簇内部。"
+      },
+      {
+        title: "边置信建模",
+        text: "模型融合属性相似、结构角色和局部频率差异，为每条边估计一致性分数，将边软划分为同配、异配和困难区。"
+      },
+      {
+        title: "可微拓扑收缩",
+        text: "可靠同配边被增强并参与低频收缩；异配噪声边被降权，转入高频纠偏支路；困难边保留不确定性。"
+      },
+      {
+        title: "结构重构与聚类读出",
+        text: "校准后的有效传播图保留簇内稳定连接和边界证据，最终由可靠性校准的聚类读出产生无标签聚类结果。"
+      }
+    ];
+
+    const network = document.getElementById("network");
+    const buttons = Array.from(document.querySelectorAll("[data-phase]"));
+    const phaseIndex = document.getElementById("phaseIndex");
+    const phaseTitle = document.getElementById("phaseTitle");
+    const phaseText = document.getElementById("phaseText");
+    let activePhase = 0;
+    let timer = null;
+
+    function setPhase(nextPhase) {
+      activePhase = nextPhase;
+      network.className.baseVal = "network-svg phase-" + nextPhase;
+      phaseIndex.textContent = String(nextPhase + 1);
+      phaseTitle.textContent = phases[nextPhase].title;
+      phaseText.textContent = phases[nextPhase].text;
+      buttons.forEach((button) => {
+        button.classList.toggle("active", Number(button.dataset.phase) === nextPhase);
+      });
+    }
+
+    buttons.forEach((button) => {
+      button.addEventListener("click", () => {
+        setPhase(Number(button.dataset.phase));
+        if (timer) {
+          clearInterval(timer);
+        }
+        timer = setInterval(() => setPhase((activePhase + 1) % phases.length), 3200);
+      });
+    });
+
+    timer = setInterval(() => setPhase((activePhase + 1) % phases.length), 3200);
+  </script>
+</body>
+</html>

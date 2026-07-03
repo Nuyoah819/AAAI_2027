@@ -1,0 +1,41 @@
+[
+  {
+    "dataset": "flickr",
+    "method": "KMeans-X",
+    "source": "local-rerun",
+    "acc_mean": 56.27,
+    "acc_std": 3.79,
+    "nmi_mean": 45.31,
+    "nmi_std": 1.96,
+    "ari_mean": 36.07,
+    "ari_std": 2.75,
+    "f1_mean": 53.48,
+    "f1_std": 3.67
+  },
+  {
+    "dataset": "flickr",
+    "method": "SGC-1",
+    "source": "local-rerun",
+    "acc_mean": 46.26,
+    "acc_std": 1.29,
+    "nmi_mean": 29.2,
+    "nmi_std": 0.42,
+    "ari_mean": 22.22,
+    "ari_std": 1.68,
+    "f1_mean": 44.2,
+    "f1_std": 1.52
+  },
+  {
+    "dataset": "flickr",
+    "method": "SGC-2",
+    "source": "local-rerun",
+    "acc_mean": 36.23,
+    "acc_std": 1.31,
+    "nmi_mean": 23.65,
+    "nmi_std": 0.75,
+    "ari_mean": 14.31,
+    "ari_std": 0.65,
+    "f1_mean": 32.74,
+    "f1_std": 1.01
+  }
+]

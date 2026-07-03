@@ -1,0 +1,9 @@
+trial,temperature,refine_repel,target_hetero_ratio,selection_signal
+0,0.2,0.15,0.24,diagnostics-only; no test metric used for final selection
+1,0.2,0.15,0.32,diagnostics-only; no test metric used for final selection
+2,0.2,0.25,0.24,diagnostics-only; no test metric used for final selection
+3,0.2,0.25,0.32,diagnostics-only; no test metric used for final selection
+4,0.24,0.15,0.24,diagnostics-only; no test metric used for final selection
+5,0.24,0.15,0.32,diagnostics-only; no test metric used for final selection
+6,0.24,0.25,0.24,diagnostics-only; no test metric used for final selection
+7,0.24,0.25,0.32,diagnostics-only; no test metric used for final selection

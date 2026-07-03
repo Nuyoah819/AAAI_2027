@@ -1,0 +1,74 @@
+{
+  "space": {
+    "temperature": [
+      0.2,
+      0.24
+    ],
+    "refine_repel": [
+      0.15,
+      0.25
+    ],
+    "target_hetero_ratio": [
+      0.24,
+      0.32
+    ]
+  },
+  "records": [
+    {
+      "trial": 0,
+      "temperature": 0.2,
+      "refine_repel": 0.15,
+      "target_hetero_ratio": 0.24,
+      "selection_signal": "diagnostics-only; no test metric used for final selection"
+    },
+    {
+      "trial": 1,
+      "temperature": 0.2,
+      "refine_repel": 0.15,
+      "target_hetero_ratio": 0.32,
+      "selection_signal": "diagnostics-only; no test metric used for final selection"
+    },
+    {
+      "trial": 2,
+      "temperature": 0.2,
+      "refine_repel": 0.25,
+      "target_hetero_ratio": 0.24,
+      "selection_signal": "diagnostics-only; no test metric used for final selection"
+    },
+    {
+      "trial": 3,
+      "temperature": 0.2,
+      "refine_repel": 0.25,
+      "target_hetero_ratio": 0.32,
+      "selection_signal": "diagnostics-only; no test metric used for final selection"
+    },
+    {
+      "trial": 4,
+      "temperature": 0.24,
+      "refine_repel": 0.15,
+      "target_hetero_ratio": 0.24,
+      "selection_signal": "diagnostics-only; no test metric used for final selection"
+    },
+    {
+      "trial": 5,
+      "temperature": 0.24,
+      "refine_repel": 0.15,
+      "target_hetero_ratio": 0.32,
+      "selection_signal": "diagnostics-only; no test metric used for final selection"
+    },
+    {
+      "trial": 6,
+      "temperature": 0.24,
+      "refine_repel": 0.25,
+      "target_hetero_ratio": 0.24,
+      "selection_signal": "diagnostics-only; no test metric used for final selection"
+    },
+    {
+      "trial": 7,
+      "temperature": 0.24,
+      "refine_repel": 0.25,
+      "target_hetero_ratio": 0.32,
+      "selection_signal": "diagnostics-only; no test metric used for final selection"
+    }
+  ]
+}
